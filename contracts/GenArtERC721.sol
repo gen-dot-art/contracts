@@ -12,10 +12,6 @@ import "./GenArtAccess.sol";
  * account.
  */
 abstract contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
-    /**
-     * @dev See {IERC165-supportsInterface}.
-     */
-
     uint256 public constant ROYALTY_FEE = 750;
     address private royaltyReceiver;
 
@@ -23,6 +19,9 @@ abstract contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
         royaltyReceiver = _royaltyReceiver;
     }
 
+    /**
+     * @dev See {IERC165-supportsInterface}.
+     */
     function supportsInterface(bytes4 interfaceId)
         public
         view

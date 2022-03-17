@@ -4,9 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @dev This implements an optional extension of {ERC721Enumerable} defined in the EIP that adds
- * enumerability of all the token ids in the contract as well as all token ids owned by each
- * account.
+ * @dev This implements access control for owner and admins
  */
 abstract contract GenArtAccess is Ownable {
     mapping(address => bool) public admins;
