@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const BigNumber = require("bignumber.js");
+BigNumber.config({ EXPONENTIAL_AT: 9999 });
 const { expectError } = require("../helpers");
 const { expectEvent } = require("@openzeppelin/test-helpers");
 const URI_1 = "https://localhost:8080/premium/";
@@ -74,6 +75,10 @@ contract("GenArtERC721", function (accounts) {
     await genartMembership.mint(user2, {
       from: user2,
       value: priceStandard,
+    });
+    await genartMembership.mintGold(user2, {
+      from: user2,
+      value: priceGold,
     });
     await genartMembership.mintGold(user2, {
       from: user2,
@@ -218,7 +223,7 @@ contract("GenArtERC721", function (accounts) {
   it("Should mint X for account", async () => {
     const tx = await genartERC721Contract.mint(user3, "1", {
       from: user3,
-      value: MINT_PRICE.times(2),
+      value: MINT_PRICE,
     });
     const tx2 = await genartERC721Contract.mint(user2, "2", {
       from: user2,
@@ -226,7 +231,7 @@ contract("GenArtERC721", function (accounts) {
     });
     expectEvent(tx, "Mint", {
       to: user3,
-      membershipId: "14",
+      membershipId: "15",
       collectionId: "20000",
       tokenId: "2000000004",
     });
@@ -242,6 +247,14 @@ contract("GenArtERC721", function (accounts) {
       collectionId: "20000",
       tokenId: "2000000006",
     });
+  });
+  it("Should fail on sell out", async () => {
+    const tx = () =>
+      genartERC721Contract.mintOne(user2, "14", {
+        value: MINT_PRICE,
+        from: user2,
+      });
+    await expectError(tx, "no mints available", "minting access broken");
   });
   it("Should get correct tokenUri", async () => {
     const tokens = await genartERC721Contract.getTokensByOwner(user1);
@@ -267,5 +280,84 @@ contract("GenArtERC721", function (accounts) {
   it("Should get tokens of owner", async () => {
     const supply = await genartERC721Contract.getTokensByOwner.call(user1);
     expect(supply.length.toString()).equals(`2`);
+  });
+
+  it("withdraw from payment splitter", async () => {
+    const sold = Number(
+      (await genartERC721Contract.totalSupply.call()).toString() - 1
+    );
+    const balanceOwnerOld = await web3.eth.getBalance(owner);
+    const balanceArtistOld = await web3.eth.getBalance(artist);
+
+    await genartPaymentSplitter.release(owner, {
+      from: user1,
+    });
+    await genartPaymentSplitter.release(artist, {
+      from: user1,
+    });
+
+    const balanceOwnerNew = await web3.eth.getBalance(owner);
+    const balanceArtistNew = await web3.eth.getBalance(artist);
+    const ownerShare = MINT_PRICE.times(sold).times(sharesMint[0] / 1000);
+    const artistShare = MINT_PRICE.times(sold).times(sharesMint[1] / 1000);
+    expect(balanceOwnerNew.toString()).equals(
+      ownerShare.plus(balanceOwnerOld).minus(0).toString()
+    );
+    expect(balanceArtistNew.toString()).equals(
+      artistShare.plus(balanceArtistOld).minus(0).toString()
+    );
+  });
+
+  it("Should fail if no funds available for account", async () => {
+    const tx = () =>
+      genartPaymentSplitter.release(user1, {
+        from: user1,
+      });
+    await expectError(tx, "no funds to release", "release funds broken");
+  });
+
+  it("Should split royalties", async () => {
+    const royaltyValue = MINT_PRICE;
+    await web3.eth.sendTransaction({
+      from: user1,
+      to: genartERC721Contract.address,
+      value: royaltyValue.toString(),
+    });
+
+    const balanceArtist = await genartPaymentSplitter.getBalanceForAccount(
+      artist
+    );
+    const balanceOwner = await genartPaymentSplitter.getBalanceForAccount(
+      owner
+    );
+    const ownerShare = royaltyValue.times(sharesRoyalty[0]).div(750);
+    const artistShare = royaltyValue.times(sharesRoyalty[1]).div(750);
+    expect(Math.floor(ownerShare.toNumber())).equals(
+      Number(balanceOwner.toString())
+    );
+    expect(Math.floor(artistShare.toNumber())).equals(
+      Number(balanceArtist.toString())
+    );
+
+    // release payment to accounts
+    const balanceOwnerOld = await web3.eth.getBalance(owner);
+    const balanceArtistOld = await web3.eth.getBalance(artist);
+
+    await genartPaymentSplitter.release(owner, {
+      from: user1,
+    });
+    await genartPaymentSplitter.release(artist, {
+      from: user1,
+    });
+
+    const balanceOwnerNew = await web3.eth.getBalance(owner);
+    const balanceArtistNew = await web3.eth.getBalance(artist);
+
+    expect(Math.floor(ownerShare.plus(balanceOwnerOld).toNumber())).equals(
+      Number(balanceOwnerNew.toString())
+    );
+    expect(Math.floor(artistShare.plus(balanceArtistOld).toNumber())).equals(
+      Number(balanceArtistNew.toString())
+    );
   });
 });
