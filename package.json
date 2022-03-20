@@ -24,5 +24,8 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.5.0"
+  },
+  "scripts": {
+    "build": "hardhat"
   }
 }

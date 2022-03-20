@@ -16,12 +16,12 @@ abstract contract GenArtAccess is Ownable {
         address sender = _msgSender();
         require(
             owner() == sender || admins[sender],
-            "Ownable: caller is not the owner nor admin"
+            "GenArtAccess: caller is not the owner nor admin"
         );
         _;
     }
 
-    function addAdminAccess(address admin, bool access) public onlyOwner {
+    function setAdminAccess(address admin, bool access) public onlyOwner {
         admins[admin] = access;
     }
 }
