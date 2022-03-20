@@ -10,6 +10,8 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
         uint256[] shares;
     }
 
+    event IncomingPayment(address collection, address payee, uint256 amount);
+
     mapping(address => uint256) public _balances;
     mapping(address => Payment) private _payments;
     mapping(address => Payment) private _paymentsRoyalties;
@@ -68,6 +70,7 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
             unchecked {
                 _balances[payee] += ethAmount;
             }
+            emit IncomingPayment(collection, payee, ethAmount);
         }
     }
 
@@ -124,5 +127,15 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
         payable(account).transfer(amount);
     }
 
-    receive() external payable {}
+    function getBalanceForAccount(address account)
+        public
+        view
+        returns (uint256)
+    {
+        return _balances[account];
+    }
+
+    receive() external payable {
+        payable(owner()).transfer(msg.value);
+    }
 }
