@@ -17,18 +17,18 @@ import "./IGenArtInterfaceV2.sol";
  * Sends all ETH to a {PaymentSplitter} contract.
  * Restricts minting to GEN.ART Membership holders.
  * IMPORTANT: This implementation requires the royalties to be send to the contracts address
- * in order to split the fund between payees automatically.
+ * in order to split the funds between payees automatically.
  */
-contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
+contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
     using Strings for uint256;
     using MintStates for MintStates.State;
     struct Token {
         uint256 id;
     }
 
-    uint256 public constant MINT_SUPPLY = 225;
     uint256 public constant MINT_PRICE = 0.2 ether;
 
+    uint256 public _mintSupply;
     address public _royaltyReceiver = address(this);
     uint256 public _collectionId = 20000;
     bool private _reservedMinted;
@@ -37,6 +37,7 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
     address public _paymentSplitter;
     address public _genartInterface;
     address public _genartMembership;
+    string private _uri;
     bool public _paused = true;
 
     MintStates.State public _mintstate;
@@ -54,15 +55,21 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
     constructor(
         string memory name_,
         string memory symbol_,
-        address paymentSplitter_,
-        address genartInterface_,
+        string memory uri_,
+        uint256 mintSupply_,
+        uint256 reservedGold_,
         address genartMembership_,
+        address genartInterface_,
+        address paymentSplitter_,
         address artist_
-    ) ERC721(name_, symbol_) {
+    ) ERC721(name_, symbol_) Ownable() {
         _artist = artist_;
+        _mintSupply = mintSupply_;
         _paymentSplitter = paymentSplitter_;
         _genartInterface = genartInterface_;
         _genartMembership = genartMembership_;
+        _mintstate.init(reservedGold_);
+        _uri = uri_;
     }
 
     /**
@@ -98,7 +105,7 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
                 IGenArtInterfaceV2(_genartInterface).isGoldToken(
                     memberships[i]
                 ),
-                MINT_SUPPLY,
+                _mintSupply,
                 totalSupply()
             );
         }
@@ -117,7 +124,7 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
             _mintstate.getAvailableMints(
                 membershipId,
                 IGenArtInterfaceV2(_genartInterface).isGoldToken(membershipId),
-                MINT_SUPPLY,
+                _mintSupply,
                 totalSupply()
             );
     }
@@ -168,7 +175,7 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
             uint256 mints = _mintstate.getAvailableMints(
                 memberships[i],
                 isGold,
-                MINT_SUPPLY,
+                _mintSupply,
                 totalSupply()
             );
             // mint tokens with membership and stop if desired amount reached
@@ -179,7 +186,9 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
             i++;
         }
         // send funds to PaymentSplitter
-        IGenArtPaymentSplitter(_paymentSplitter).splitPayment(address(this));
+        IGenArtPaymentSplitter(_paymentSplitter).splitPayment{value: msg.value}(
+            address(this)
+        );
     }
 
     function mintOne(address to, uint256 membershipId) public payable {
@@ -200,7 +209,9 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
             IGenArtInterfaceV2(_genartInterface).isGoldToken(membershipId)
         );
         // send funds to PaymentSplitter
-        IGenArtPaymentSplitter(_paymentSplitter).splitPayment(address(this));
+        IGenArtPaymentSplitter(_paymentSplitter).splitPayment{value: msg.value}(
+            address(this)
+        );
     }
 
     /**
@@ -238,7 +249,7 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
      *@dev Reserved mints can only be called by admins
      * Only one possible mint.
      */
-    function reservedMint(address to) public payable onlyAdmin {
+    function mintReserved(address to) public payable onlyAdmin {
         require(!_reservedMinted, "GenArtERC721: reserved already minted");
         _mintOne(to, 0);
         _reservedMinted = true;
@@ -280,7 +291,7 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
             _collectionId,
             name,
             totalSupply(),
-            MINT_SUPPLY,
+            _mintSupply,
             MINT_PRICE,
             _artist
         );
@@ -327,11 +338,27 @@ contract GenArtERC721 is GenArtAccess, ERC721Enumerable, IERC2981 {
     }
 
     /**
+     * @dev Set base uri. Only allowed by admins
+     */
+    function setBaseURI(string memory uri) public onlyAdmin {
+        _uri = uri;
+    }
+
+    /**
+     * @dev Base URI for computing {tokenURI}. If set, the resulting URI for each
+     * token will be the concatenation of the `baseURI` and the `tokenId`. Empty
+     * by default, can be overriden in child contracts.
+     */
+    function _baseURI() internal view virtual override returns (string memory) {
+        return _uri;
+    }
+
+    /**
      *@dev Royalties are forwarded to {PaymentSplitter}
      */
     receive() external payable {
-        IGenArtPaymentSplitter(_paymentSplitter).splitPaymentRoyalty(
-            address(this)
-        );
+        IGenArtPaymentSplitter(_paymentSplitter).splitPaymentRoyalty{
+            value: msg.value
+        }(address(this));
     }
 }

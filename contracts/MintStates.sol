@@ -3,10 +3,10 @@ pragma solidity ^0.8.0;
 
 uint256 constant ALLOWED_MINTS_GOLD = 1;
 uint256 constant ALLOWED_MINTS_STANDARD = 1;
-uint256 constant RESERVED_GOLD_SUPPLY = 100;
 
 library MintStates {
     struct State {
+        uint256 reservedGoldSupply;
         // maps membershipIds to the amount of mints
         mapping(uint256 => uint256) _mints;
         uint256 _goldMints;
@@ -32,7 +32,7 @@ library MintStates {
         uint256 currentSupply
     ) internal view returns (uint256) {
         uint256 reserved = !isGold
-            ? (RESERVED_GOLD_SUPPLY - state._goldMints)
+            ? (state.reservedGoldSupply - state._goldMints)
             : 0;
         uint256 availableMints = collectionSupply - currentSupply - reserved;
 
@@ -40,6 +40,10 @@ library MintStates {
             availableMints > 0
                 ? getAllowedMints(isGold) - getMints(state, membershipId)
                 : 0;
+    }
+
+    function init(State storage state, uint256 reservedGold) internal {
+        state.reservedGoldSupply = reservedGold;
     }
 
     function update(
