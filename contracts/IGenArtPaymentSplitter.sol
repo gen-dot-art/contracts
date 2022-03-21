@@ -25,4 +25,11 @@ interface IGenArtPaymentSplitter {
         returns (uint256);
 
     function release(address account) external;
+
+    function updatePayee(
+        address collection,
+        uint8 paymentType,
+        uint256 payeeIndex,
+        address newPayee
+    ) external;
 }

@@ -14,12 +14,37 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
+  const NAME = "GENART Collection v3";
+  const SYM = "SYM";
+  const URI = "https://test-api.gen.art/public/attributes/";
+  const MINT_SUPPLY = 225;
+  const RESERVED_GOLD = 100;
+  const ARTIST = "0x8939a7106957dD14bf3D3aCc9151b96E4bD81bC6";
+  const GENART_INTERFACE = "0x0446de57dc1ade6d5b175c0a3f0e3e8d337991e1";
+  const GENART_MEMBERSHIP = "0xbAdc470F2E159f01396a546FC63D8c0Db2697f3b";
   const GenArtERC721 = await hre.ethers.getContractFactory("GenArtERC721");
-  const contract = await GenArtERC721.deploy("address_here");
+  const GenArtPaymentSplitter = await hre.ethers.getContractFactory(
+    "GenArtPaymentSplitter"
+  );
+  const paymentSplitter = await GenArtPaymentSplitter.deploy();
+  const args = [
+    NAME,
+    SYM,
+    URI,
+    MINT_SUPPLY,
+    RESERVED_GOLD,
+    GENART_MEMBERSHIP,
+    GENART_INTERFACE,
+    paymentSplitter.address,
+    ARTIST,
+  ];
+  const genartERC721 = await GenArtERC721.deploy(...args);
 
-  await contract.deployed();
+  await genartERC721.deployed();
 
-  console.log("GenArtERC721 deployed to:", contract.address);
+  console.log("GenArtPaymentSplitter deployed to:", paymentSplitter.address);
+  console.log("GenArtERC721 deployed to:", genartERC721.address);
+  console.log(args.map((a) => `"${a}"`).join(" "));
 }
 
 // We recommend this pattern to be able to use async/await everywhere

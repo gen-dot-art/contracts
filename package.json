@@ -32,6 +32,7 @@
   },
   "scripts": {
     "build": "hardhat compile",
-    "test": "yarn build && hardhat test"
+    "test": "yarn build && hardhat test",
+    "hardhat": "hardhat"
   }
 }

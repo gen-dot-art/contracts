@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-uint256 constant ALLOWED_MINTS_GOLD = 1;
-uint256 constant ALLOWED_MINTS_STANDARD = 1;
-
 library MintStates {
     struct State {
         uint256 reservedGoldSupply;
+        uint256 allowedMintGold;
+        uint256 allowedMintStandrad;
         // maps membershipIds to the amount of mints
         mapping(uint256 => uint256) _mints;
         uint256 _goldMints;
@@ -20,8 +19,12 @@ library MintStates {
         return state._mints[membershipId];
     }
 
-    function getAllowedMints(bool isGold) internal pure returns (uint256) {
-        return (isGold ? ALLOWED_MINTS_GOLD : ALLOWED_MINTS_STANDARD);
+    function getAllowedMints(State storage state, bool isGold)
+        internal
+        view
+        returns (uint256)
+    {
+        return (isGold ? state.allowedMintGold : state.allowedMintStandrad);
     }
 
     function getAvailableMints(
@@ -38,12 +41,14 @@ library MintStates {
 
         return
             availableMints > 0
-                ? getAllowedMints(isGold) - getMints(state, membershipId)
+                ? getAllowedMints(state, isGold) - getMints(state, membershipId)
                 : 0;
     }
 
     function init(State storage state, uint256 reservedGold) internal {
         state.reservedGoldSupply = reservedGold;
+        state.allowedMintGold = 1;
+        state.allowedMintStandrad = 1;
     }
 
     function update(

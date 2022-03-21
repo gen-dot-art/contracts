@@ -130,6 +130,17 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
     }
 
     /**
+     *@dev Get amount of mints for a membershipId
+     */
+    function getMembershipMints(uint256 membershipId)
+        public
+        view
+        returns (uint256)
+    {
+        return _mintstate.getMints(membershipId);
+    }
+
+    /**
      *@dev Check if minter has available mint slots and has sent the required amount of ETH
      * Revert in case minting is paused or checks fail.
      */
