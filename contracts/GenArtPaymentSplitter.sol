@@ -10,7 +10,12 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
         uint256[] shares;
     }
 
-    event IncomingPayment(address collection, address payee, uint256 amount);
+    event IncomingPayment(
+        address collection,
+        uint256 paymentType,
+        address payee,
+        uint256 amount
+    );
 
     mapping(address => uint256) public _balances;
     mapping(address => Payment) private _payments;
@@ -80,7 +85,7 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
             unchecked {
                 _balances[payee] += ethAmount;
             }
-            emit IncomingPayment(collection, payee, ethAmount);
+            emit IncomingPayment(collection, 0, payee, ethAmount);
         }
     }
 
@@ -101,6 +106,7 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
             unchecked {
                 _balances[payee] += ethAmount;
             }
+            emit IncomingPayment(collection, 1, payee, ethAmount);
         }
     }
 
@@ -142,7 +148,7 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
         address newPayee
     ) public override {
         sanityCheck(collection, paymentType);
-        Payment memory payment = paymentType == 0
+        Payment storage payment = paymentType == 0
             ? _payments[collection]
             : _paymentsRoyalties[collection];
         address oldPayee = payment.payees[payeeIndex];

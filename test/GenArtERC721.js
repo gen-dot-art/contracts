@@ -136,7 +136,7 @@ contract("GenArtERC721", function (accounts) {
     await expectError(tx, "minting is paused", "pausing mint is broken");
     await genartERC721Contract.setPaused(false, { from: owner });
   });
-  it("Should mint reserved", async () => {
+  it("Should mint owner reserved", async () => {
     const tx1 = await genartERC721Contract.mintReserved(owner, { from: owner });
     expectEvent(tx1, "Mint", {
       to: owner,
@@ -198,14 +198,6 @@ contract("GenArtERC721", function (accounts) {
     });
     // await expectError(tx, "no mints available", "minting access broken");
   });
-  it("Should fail once only reserved for gold remaining", async () => {
-    const tx = () =>
-      genartERC721Contract.mintOne(user2, "2", {
-        value: MINT_PRICE,
-        from: user2,
-      });
-    await expectError(tx, "no mints available", "minting access broken");
-  });
   it("Should fail if underpriced", async () => {
     const tx = () =>
       genartERC721Contract.mint(user3, "1", {
@@ -220,9 +212,20 @@ contract("GenArtERC721", function (accounts) {
     await expectError(tx, "transaction underpriced", "minting pricing broken");
     await expectError(tx2, "transaction underpriced", "minting pricing broken");
   });
-  it("Should mint X for account", async () => {
-    const tx = await genartERC721Contract.mint(user3, "1", {
-      from: user3,
+  it("Should fail once only reserved for gold remaining", async () => {
+    const tx = () =>
+      genartERC721Contract.mintOne(user2, "2", {
+        value: MINT_PRICE,
+        from: user2,
+      });
+    await expectError(tx, "no mints available", "minting access broken");
+  });
+  it("Should remove reserved for gold and mint X for account", async () => {
+    await genartERC721Contract.setReservedGold("0", {
+      from: owner,
+    });
+    const tx = await genartERC721Contract.mintOne(user2, "2", {
+      from: user2,
       value: MINT_PRICE,
     });
     const tx2 = await genartERC721Contract.mint(user2, "2", {
@@ -230,8 +233,8 @@ contract("GenArtERC721", function (accounts) {
       value: MINT_PRICE.times(2),
     });
     expectEvent(tx, "Mint", {
-      to: user3,
-      membershipId: "15",
+      to: user2,
+      membershipId: "2",
       collectionId: "20000",
       tokenId: "2000000004",
     });
@@ -248,6 +251,7 @@ contract("GenArtERC721", function (accounts) {
       tokenId: "2000000006",
     });
   });
+
   it("Should fail on sell out", async () => {
     const tx = () =>
       genartERC721Contract.mintOne(user2, "14", {
@@ -274,7 +278,7 @@ contract("GenArtERC721", function (accounts) {
 
   it("Should get total supply", async () => {
     const supply = await genartERC721Contract.totalSupply.call();
-    expect(supply.toString()).equals(`6`);
+    expect(supply.toString()).equals(String(COLLECTION_SIZE));
   });
 
   it("Should get tokens of owner", async () => {

@@ -12,7 +12,6 @@ let user2;
 let collectionAddress;
 let stakingFundsAddress;
 // const zeroAddress = "0x0000000000000000000000000000000000000000";
-let genartERC721Contract;
 let genartPaymentSplitter;
 
 let payeesMint;
@@ -60,9 +59,25 @@ contract("GenArtPaymentSplitter", function (accounts) {
     const balanceOwnerOld = await web3.eth.getBalance(owner);
     const balanceArtistOld = await web3.eth.getBalance(artist);
 
-    await genartPaymentSplitter.splitPayment(collectionAddress, {
+    const ownerShare = MINT_PRICE.times(sold).times(sharesMint[0] / 1000);
+    const artistShare = MINT_PRICE.times(sold).times(sharesMint[1] / 1000);
+
+    const tx = await genartPaymentSplitter.splitPayment(collectionAddress, {
       from: collectionAddress,
       value: MINT_PRICE.times(sold),
+    });
+
+    expectEvent(tx, "IncomingPayment", {
+      collection: collectionAddress,
+      paymentType: "0",
+      amount: ownerShare.toString(),
+      payee: owner,
+    });
+    expectEvent(tx, "IncomingPayment", {
+      collection: collectionAddress,
+      paymentType: "0",
+      amount: artistShare.toString(),
+      payee: artist,
     });
 
     await genartPaymentSplitter.release(owner, {
@@ -74,8 +89,7 @@ contract("GenArtPaymentSplitter", function (accounts) {
 
     const balanceOwnerNew = await web3.eth.getBalance(owner);
     const balanceArtistNew = await web3.eth.getBalance(artist);
-    const ownerShare = MINT_PRICE.times(sold).times(sharesMint[0] / 1000);
-    const artistShare = MINT_PRICE.times(sold).times(sharesMint[1] / 1000);
+
     expect(balanceOwnerNew.toString()).equals(
       ownerShare.plus(balanceOwnerOld).minus(0).toString()
     );
@@ -92,12 +106,47 @@ contract("GenArtPaymentSplitter", function (accounts) {
     await expectError(tx, "no funds to release", "release funds broken");
   });
 
-  it("Should split royalties", async () => {
-    const royaltyValue = MINT_PRICE;
+  it("Should fail unauthorized account updates payee", async () => {
+    const tx = () =>
+      genartPaymentSplitter.updatePayee(collectionAddress, 0, 1, user1, {
+        from: user1,
+      });
+    await expectError(tx, "sender is not current payee", "update payee broken");
+  });
 
+  it("Should update payee", async () => {
     await genartPaymentSplitter.splitPaymentRoyalty(collectionAddress, {
       from: owner,
-      value: royaltyValue,
+      value: MINT_PRICE,
+    });
+    await genartPaymentSplitter.updatePayee(collectionAddress, 1, 1, user1, {
+      from: artist,
+    });
+    artist = user1;
+  });
+
+  it("Should split royalties", async () => {
+    const royaltyValue = MINT_PRICE.times(2);
+    const ownerShare = royaltyValue.times(sharesRoyalty[0]).div(750);
+    const artistShare = royaltyValue.times(sharesRoyalty[1]).div(750);
+
+    const tx = await genartPaymentSplitter.splitPaymentRoyalty(
+      collectionAddress,
+      {
+        from: owner,
+        value: MINT_PRICE,
+      }
+    );
+
+    expectEvent(tx, "IncomingPayment", {
+      collection: collectionAddress,
+      paymentType: "1",
+      payee: owner,
+    });
+    expectEvent(tx, "IncomingPayment", {
+      collection: collectionAddress,
+      paymentType: "1",
+      payee: artist,
     });
 
     const balanceArtist = await genartPaymentSplitter.getBalanceForAccount(
@@ -106,8 +155,7 @@ contract("GenArtPaymentSplitter", function (accounts) {
     const balanceOwner = await genartPaymentSplitter.getBalanceForAccount(
       owner
     );
-    const ownerShare = royaltyValue.times(sharesRoyalty[0]).div(750);
-    const artistShare = royaltyValue.times(sharesRoyalty[1]).div(750);
+
     expect(Math.floor(ownerShare.toNumber())).equals(
       Number(balanceOwner.toString())
     );
@@ -120,10 +168,10 @@ contract("GenArtPaymentSplitter", function (accounts) {
     const balanceArtistOld = await web3.eth.getBalance(artist);
 
     await genartPaymentSplitter.release(owner, {
-      from: user1,
+      from: user2,
     });
     await genartPaymentSplitter.release(artist, {
-      from: user1,
+      from: user2,
     });
 
     const balanceOwnerNew = await web3.eth.getBalance(owner);
@@ -135,19 +183,5 @@ contract("GenArtPaymentSplitter", function (accounts) {
     expect(Math.floor(artistShare.plus(balanceArtistOld).toNumber())).equals(
       Number(balanceArtistNew.toString())
     );
-  });
-
-  it("Should fail unauthorized account updates payee", async () => {
-    const tx = () =>
-      genartPaymentSplitter.updatePayee(collectionAddress, 0, 1, user1, {
-        from: user1,
-      });
-    await expectError(tx, "sender is not current payee", "update payee broken");
-  });
-
-  it("Should update payee", async () => {
-    await genartPaymentSplitter.updatePayee(collectionAddress, 0, 1, user1, {
-      from: artist,
-    });
   });
 });

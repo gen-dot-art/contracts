@@ -62,7 +62,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         address genartInterface_,
         address paymentSplitter_,
         address artist_
-    ) ERC721(name_, symbol_) Ownable() {
+    ) ERC721(name_, symbol_) GenArtAccess() {
         _artist = artist_;
         _mintSupply = mintSupply_;
         _paymentSplitter = paymentSplitter_;
@@ -260,7 +260,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
      *@dev Reserved mints can only be called by admins
      * Only one possible mint.
      */
-    function mintReserved(address to) public payable onlyAdmin {
+    function mintReserved(address to) public onlyAdmin {
         require(!_reservedMinted, "GenArtERC721: reserved already minted");
         _mintOne(to, 0);
         _reservedMinted = true;
@@ -274,6 +274,13 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
             "GenArtERC721: burn caller is not owner"
         );
         _burn(tokenId);
+    }
+
+    /**
+     *@dev Pause and unpause minting
+     */
+    function setReservedGold(uint256 reserved) public onlyGenArtAdmin {
+        _mintstate.setReservedGold(reserved);
     }
 
     /**
@@ -327,7 +334,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         );
     }
 
-    function setRoyaltyReceiver(address receiver) public onlyAdmin {
+    function setRoyaltyReceiver(address receiver) public onlyGenArtAdmin {
         _royaltyReceiver = receiver;
     }
 
@@ -351,7 +358,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
     /**
      * @dev Set base uri. Only allowed by admins
      */
-    function setBaseURI(string memory uri) public onlyAdmin {
+    function setBaseURI(string memory uri) public onlyGenArtAdmin {
         _uri = uri;
     }
 

@@ -5,7 +5,7 @@ library MintStates {
     struct State {
         uint256 reservedGoldSupply;
         uint256 allowedMintGold;
-        uint256 allowedMintStandrad;
+        uint256 allowedMintStandard;
         // maps membershipIds to the amount of mints
         mapping(uint256 => uint256) _mints;
         uint256 _goldMints;
@@ -24,7 +24,7 @@ library MintStates {
         view
         returns (uint256)
     {
-        return (isGold ? state.allowedMintGold : state.allowedMintStandrad);
+        return (isGold ? state.allowedMintGold : state.allowedMintStandard);
     }
 
     function getAvailableMints(
@@ -34,7 +34,9 @@ library MintStates {
         uint256 collectionSupply,
         uint256 currentSupply
     ) internal view returns (uint256) {
-        uint256 reserved = !isGold
+        uint256 reserved = state.reservedGoldSupply <= state._goldMints
+            ? 0
+            : !isGold
             ? (state.reservedGoldSupply - state._goldMints)
             : 0;
         uint256 availableMints = collectionSupply - currentSupply - reserved;
@@ -48,7 +50,13 @@ library MintStates {
     function init(State storage state, uint256 reservedGold) internal {
         state.reservedGoldSupply = reservedGold;
         state.allowedMintGold = 1;
-        state.allowedMintStandrad = 1;
+        state.allowedMintStandard = 1;
+    }
+
+    function setReservedGold(State storage state, uint256 reservedGold)
+        internal
+    {
+        state.reservedGoldSupply = reservedGold;
     }
 
     function update(
