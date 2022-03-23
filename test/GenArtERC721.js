@@ -19,6 +19,7 @@ let owner;
 let user1;
 let user2;
 let user3;
+let user4;
 let stakingFundsAddress;
 // const zeroAddress = "0x0000000000000000000000000000000000000000";
 let genartERC721Contract;
@@ -38,11 +39,12 @@ const GenArtPaymentSplitter = artifacts.require("GenArtPaymentSplitter");
 
 contract("GenArtERC721", function (accounts) {
   before(async () => {
-    const [_owner, _user1, _user2, _user3, _user4, _user5] = accounts;
+    const [_owner, _user1, _user2, _user3, _user4, _user5, _user6] = accounts;
     owner = _owner;
     user1 = _user1;
     user2 = _user2;
     user3 = _user3;
+    user4 = _user6;
     artist = _user4;
     stakingFundsAddress = _user5;
 
@@ -109,6 +111,7 @@ contract("GenArtERC721", function (accounts) {
       NAME,
       SYMBOL,
       COLLECTION_URI,
+      MINT_PRICE.toString(),
       COLLECTION_SIZE,
       RESERVED_GOLD,
       genartMembership.address,
@@ -137,15 +140,29 @@ contract("GenArtERC721", function (accounts) {
     await genartERC721Contract.setPaused(false, { from: owner });
   });
   it("Should mint owner reserved", async () => {
-    const tx1 = await genartERC721Contract.mintReserved(owner, { from: owner });
+    const tx1 = await genartERC721Contract.mintReserved({ from: owner });
     expectEvent(tx1, "Mint", {
       to: owner,
       membershipId: "0",
       collectionId: "20000",
       tokenId: "2000000001",
     });
-    const tx = () => genartERC721Contract.mintReserved(owner, { from: owner });
+    const tx = () => genartERC721Contract.mintReserved({ from: owner });
     await expectError(tx, "already minted", "minting reserved is broken");
+  });
+  it("Should fail if not GEN.ART member", async () => {
+    const tx = () =>
+      genartERC721Contract.mint(user4, "1", {
+        from: user4,
+        value: MINT_PRICE,
+      });
+    const tx2 = () =>
+      genartERC721Contract.mintOne(user4, "1", {
+        from: user4,
+        value: MINT_PRICE.times(2),
+      });
+    await expectError(tx, "no mints", "minting access broken");
+    await expectError(tx2, "not membership owner", "minting access broken");
   });
   it("Should mint for standard GEN.ART member and split funds", async () => {
     const tx = await genartERC721Contract.mintOne(user1, "1", {

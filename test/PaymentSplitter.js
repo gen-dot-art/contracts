@@ -126,8 +126,8 @@ contract("GenArtPaymentSplitter", function (accounts) {
   });
 
   it("Should split royalties", async () => {
-    const royaltyValue = MINT_PRICE.times(2);
-    const ownerShare = royaltyValue.times(sharesRoyalty[0]).div(750);
+    const royaltyValue = MINT_PRICE;
+    const ownerShare = royaltyValue.times(2).times(sharesRoyalty[0]).div(750);
     const artistShare = royaltyValue.times(sharesRoyalty[1]).div(750);
 
     const tx = await genartPaymentSplitter.splitPaymentRoyalty(
@@ -182,6 +182,28 @@ contract("GenArtPaymentSplitter", function (accounts) {
     );
     expect(Math.floor(artistShare.plus(balanceArtistOld).toNumber())).equals(
       Number(balanceArtistNew.toString())
+    );
+  });
+
+  it("Should do emergency withdraw", async () => {
+    await genartPaymentSplitter.splitPaymentRoyalty(collectionAddress, {
+      from: owner,
+      value: MINT_PRICE.times(5),
+    });
+    const contractBalance = await web3.eth.getBalance(
+      genartPaymentSplitter.address
+    );
+    const gasPrice = new BigNumber(10).pow(11).times(43);
+    const balanceOwnerOld = await web3.eth.getBalance(owner);
+    const tx = await genartPaymentSplitter.emergencyWithdraw({
+      gasPrice,
+      from: owner,
+    });
+    const gas = new BigNumber(tx.receipt.gasUsed).times(gasPrice);
+
+    const balanceOwnerNew = await web3.eth.getBalance(owner);
+    expect(balanceOwnerNew.toString()).to.equal(
+      new BigNumber(balanceOwnerOld).plus(contractBalance).minus(gas).toString()
     );
   });
 });

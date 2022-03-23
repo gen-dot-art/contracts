@@ -17,17 +17,19 @@ async function main() {
   const NAME = "GENART Collection v3";
   const SYM = "SYM";
   const URI = "https://test-api.gen.art/public/attributes/";
-  const MINT_SUPPLY = 225;
-  const RESERVED_GOLD = 100;
+  const PRICE = 0.002;
+  const MINT_SUPPLY = 12;
+  const RESERVED_GOLD = 3;
   const ARTIST = "0x8939a7106957dD14bf3D3aCc9151b96E4bD81bC6";
   const GENART_INTERFACE = "0x0446de57dc1ade6d5b175c0a3f0e3e8d337991e1";
   const GENART_MEMBERSHIP = "0xbAdc470F2E159f01396a546FC63D8c0Db2697f3b";
   const GenArtERC721 = await hre.ethers.getContractFactory("GenArtERC721");
-  const paymentSplitter = "0x849CEf244788E4b0Ef22e11E31B6c069E04491db";
+  const paymentSplitter = "0xE348a176917eB426E0D675372cAB723D0D7136A8";
   const args = [
     NAME,
     SYM,
     URI,
+    PRICE * 1e18,
     MINT_SUPPLY,
     RESERVED_GOLD,
     GENART_MEMBERSHIP,

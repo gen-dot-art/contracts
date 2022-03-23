@@ -156,10 +156,7 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
             oldPayee == _msgSender(),
             "GenArtPaymentSplitter: sender is not current payee"
         );
-        uint256 amount = _balances[oldPayee];
-        _balances[oldPayee] = 0;
         payment.payees[payeeIndex] = newPayee;
-        _balances[newPayee] = amount;
     }
 
     function getBalanceForAccount(address account)
@@ -168,6 +165,10 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
         returns (uint256)
     {
         return _balances[account];
+    }
+
+    function emergencyWithdraw() public onlyOwner {
+        payable(owner()).transfer(address(this).balance);
     }
 
     receive() external payable {

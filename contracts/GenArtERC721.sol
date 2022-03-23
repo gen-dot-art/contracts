@@ -26,7 +26,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         uint256 id;
     }
 
-    uint256 public constant MINT_PRICE = 0.2 ether;
+    uint256 public _mintPrice;
 
     uint256 public _mintSupply;
     address public _royaltyReceiver = address(this);
@@ -56,6 +56,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         string memory name_,
         string memory symbol_,
         string memory uri_,
+        uint256 mintPrice_,
         uint256 mintSupply_,
         uint256 reservedGold_,
         address genartMembership_,
@@ -64,6 +65,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         address artist_
     ) ERC721(name_, symbol_) GenArtAccess() {
         _artist = artist_;
+        _mintPrice = mintPrice_;
         _mintSupply = mintSupply_;
         _paymentSplitter = paymentSplitter_;
         _genartInterface = genartInterface_;
@@ -153,7 +155,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         );
         uint256 ethAmount;
         unchecked {
-            ethAmount = MINT_PRICE * amount;
+            ethAmount = _mintPrice * amount;
         }
         require(
             ethAmount <= msg.value,
@@ -260,9 +262,9 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
      *@dev Reserved mints can only be called by admins
      * Only one possible mint.
      */
-    function mintReserved(address to) public onlyAdmin {
+    function mintReserved() public onlyAdmin {
         require(!_reservedMinted, "GenArtERC721: reserved already minted");
-        _mintOne(to, 0);
+        _mintOne(genartAdmin, 0);
         _reservedMinted = true;
     }
 
@@ -310,7 +312,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
             name,
             totalSupply(),
             _mintSupply,
-            MINT_PRICE,
+            _mintPrice,
             _artist
         );
     }
