@@ -34,6 +34,13 @@ module.exports = {
       accounts:
         process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
+    mainnet: {
+      url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
+      accounts:
+        process.env.PRIVATE_KEY_MAIN !== undefined
+          ? [process.env.PRIVATE_KEY_MAIN]
+          : [],
+    },
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,

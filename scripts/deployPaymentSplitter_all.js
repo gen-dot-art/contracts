@@ -21,7 +21,7 @@ async function main() {
   const paymentSplitter = await GenArtPaymentSplitter.deploy();
 
   console.log("GenArtPaymentSplitter deployed to:", paymentSplitter.address);
-  console.log("yarn hardhat verify --network rinkeby", paymentSplitter.address);
+  console.log("yarn hardhat verify --network mainnet", paymentSplitter.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

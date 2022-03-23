@@ -6,6 +6,7 @@ const { expectEvent } = require("@openzeppelin/test-helpers");
 const URI_1 = "https://localhost:8080/premium/";
 const URI_2 = "https://localhost:8080/gold/";
 const COLLECTION_URI = "https://localhost:8080/metadata/";
+const COLLECTION_ID = "20000";
 const SCALE = new BigNumber(10).pow(18);
 const NAME = "TEST";
 const SYMBOL = "SYMB";
@@ -111,6 +112,7 @@ contract("GenArtERC721", function (accounts) {
       NAME,
       SYMBOL,
       COLLECTION_URI,
+      COLLECTION_ID,
       MINT_PRICE.toString(),
       COLLECTION_SIZE,
       RESERVED_GOLD,

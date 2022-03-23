@@ -17,6 +17,7 @@ async function main() {
   const NAME = "GENART Collection v3";
   const SYM = "SYM";
   const URI = "https://test-api.gen.art/public/attributes/";
+  const COLLECTION_ID = "20000";
   const PRICE = 0.002;
   const MINT_SUPPLY = 12;
   const RESERVED_GOLD = 3;
@@ -29,6 +30,7 @@ async function main() {
     NAME,
     SYM,
     URI,
+    COLLECTION_ID,
     PRICE * 1e18,
     MINT_SUPPLY,
     RESERVED_GOLD,

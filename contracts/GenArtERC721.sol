@@ -22,18 +22,13 @@ import "./IGenArtInterfaceV2.sol";
 contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
     using Strings for uint256;
     using MintStates for MintStates.State;
-    struct Token {
-        uint256 id;
-    }
 
     uint256 public _mintPrice;
-
     uint256 public _mintSupply;
     address public _royaltyReceiver = address(this);
-    uint256 public _collectionId = 20000;
+    uint256 public _collectionId;
     bool private _reservedMinted;
     address public _artist;
-    mapping(uint256 => Token) public _tokens;
     address public _paymentSplitter;
     address public _genartInterface;
     address public _genartMembership;
@@ -43,7 +38,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
     MintStates.State public _mintstate;
 
     /**
-     *@dev Emitted in mint
+     *@dev Emitted on mint
      */
     event Mint(
         uint256 tokenId,
@@ -56,6 +51,7 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         string memory name_,
         string memory symbol_,
         string memory uri_,
+        uint256 collectionId_,
         uint256 mintPrice_,
         uint256 mintSupply_,
         uint256 reservedGold_,
@@ -64,14 +60,15 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         address paymentSplitter_,
         address artist_
     ) ERC721(name_, symbol_) GenArtAccess() {
-        _artist = artist_;
+        _uri = uri_;
+        _collectionId = collectionId_;
         _mintPrice = mintPrice_;
         _mintSupply = mintSupply_;
-        _paymentSplitter = paymentSplitter_;
-        _genartInterface = genartInterface_;
-        _genartMembership = genartMembership_;
         _mintstate.init(reservedGold_);
-        _uri = uri_;
+        _genartMembership = genartMembership_;
+        _genartInterface = genartInterface_;
+        _paymentSplitter = paymentSplitter_;
+        _artist = artist_;
     }
 
     /**
@@ -204,6 +201,11 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
         );
     }
 
+    /**
+     *@dev Public function to mint one token for a GEN.ART Membership
+     * Requirments:
+     * - sender must own the membership
+     */
     function mintOne(address to, uint256 membershipId) public payable {
         // check if sender is owner of membership
         require(
@@ -254,67 +256,17 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
     function _mintOne(address to, uint256 membershipId) internal virtual {
         uint256 tokenId = _collectionId * 100_000 + totalSupply() + 1;
         _safeMint(to, tokenId);
-        _tokens[tokenId] = Token({id: tokenId});
         emit Mint(tokenId, _collectionId, membershipId, to);
     }
 
-    /**
-     *@dev Reserved mints can only be called by admins
-     * Only one possible mint.
-     */
-    function mintReserved() public onlyAdmin {
-        require(!_reservedMinted, "GenArtERC721: reserved already minted");
-        _mintOne(genartAdmin, 0);
-        _reservedMinted = true;
-    }
-
     function burn(uint256 tokenId) public {
-        // check if sender is owner of token
         address owner = ERC721.ownerOf(tokenId);
+        // check if sender is owner of token
         require(
             _msgSender() == owner,
             "GenArtERC721: burn caller is not owner"
         );
         _burn(tokenId);
-    }
-
-    /**
-     *@dev Pause and unpause minting
-     */
-    function setReservedGold(uint256 reserved) public onlyGenArtAdmin {
-        _mintstate.setReservedGold(reserved);
-    }
-
-    /**
-     *@dev Pause and unpause minting
-     */
-    function setPaused(bool paused) public onlyAdmin {
-        _paused = paused;
-    }
-
-    /**
-     * @dev Get collection info
-     */
-    function getCollectionInfo()
-        public
-        view
-        returns (
-            uint256 collectionId,
-            string memory name,
-            uint256 invocations,
-            uint256 maxInvocations,
-            uint256 price,
-            address artist
-        )
-    {
-        return (
-            _collectionId,
-            name,
-            totalSupply(),
-            _mintSupply,
-            _mintPrice,
-            _artist
-        );
     }
 
     /**
@@ -332,12 +284,8 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
             ((
                 IGenArtPaymentSplitter(_paymentSplitter)
                     .getTotalSharesOfCollection(address(this), 1)
-            ) * salePrice_) / 1000
+            ) * salePrice_) / 10_000
         );
-    }
-
-    function setRoyaltyReceiver(address receiver) public onlyGenArtAdmin {
-        _royaltyReceiver = receiver;
     }
 
     /**
@@ -358,7 +306,45 @@ contract GenArtERC721 is ERC721Enumerable, GenArtAccess, IERC2981 {
     }
 
     /**
-     * @dev Set base uri. Only allowed by admins
+     *@dev Pause and unpause minting
+     */
+    function setPaused(bool paused) public onlyAdmin {
+        _paused = paused;
+    }
+
+    /**
+     *@dev Reserved mints can only be called by admins
+     * Only one possible mint.
+     */
+    function mintReserved() public onlyAdmin {
+        require(!_reservedMinted, "GenArtERC721: reserved already minted");
+        _mintOne(genartAdmin, 0);
+        _reservedMinted = true;
+    }
+
+    /**
+     *@dev Set {PaymentSplitter} address
+     */
+    function setPaymentSplitter(address paymentSplitter)
+        public
+        onlyGenArtAdmin
+    {
+        _paymentSplitter = paymentSplitter;
+    }
+
+    function setRoyaltyReceiver(address receiver) public onlyGenArtAdmin {
+        _royaltyReceiver = receiver;
+    }
+
+    /**
+     *@dev Set reserved mints for gold members
+     */
+    function setReservedGold(uint256 reserved) public onlyGenArtAdmin {
+        _mintstate.setReservedGold(reserved);
+    }
+
+    /**
+     * @dev Set base uri
      */
     function setBaseURI(string memory uri) public onlyGenArtAdmin {
         _uri = uri;

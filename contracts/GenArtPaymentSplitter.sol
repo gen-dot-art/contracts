@@ -27,7 +27,7 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
     modifier onlyCollectionContractOrAdmin(bool isCollection) {
         address sender = _msgSender();
         require(
-            isCollection || owner() == sender || admins[sender],
+            isCollection || (owner() == sender) || admins[sender],
             "GenArtAccess: caller is not the owner nor admin"
         );
         _;
@@ -72,10 +72,7 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
         public
         payable
         override
-        onlyCollectionContractOrAdmin(
-            _payments[msg.sender].payees.length > 0 &&
-                _payments[msg.sender].payees[0] != address(0)
-        )
+        onlyCollectionContractOrAdmin(_payments[msg.sender].payees.length > 0)
     {
         uint256 totalShares = getTotalSharesOfCollection(collection, 0);
         for (uint8 i; i < _payments[collection].payees.length; i++) {
@@ -94,8 +91,7 @@ contract GenArtPaymentSplitter is GenArtAccess, IGenArtPaymentSplitter {
         payable
         override
         onlyCollectionContractOrAdmin(
-            _paymentsRoyalties[msg.sender].payees.length > 0 &&
-                _paymentsRoyalties[msg.sender].payees[0] != address(0)
+            _paymentsRoyalties[msg.sender].payees.length > 0
         )
     {
         uint256 totalShares = getTotalSharesOfCollection(collection, 1);
