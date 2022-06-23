@@ -2,44 +2,43 @@ const { expect } = require("chai");
 const BigNumber = require("bignumber.js");
 BigNumber.config({ EXPONENTIAL_AT: 9999 });
 const { expectError } = require("../helpers");
-const { expectEvent } = require("@openzeppelin/test-helpers");
+const { expectEvent, time } = require("@openzeppelin/test-helpers");
+const { web3 } = require("hardhat");
 const URI_1 = "https://localhost:8080/premium/";
 const URI_2 = "https://localhost:8080/gold/";
 const COLLECTION_URI = "https://localhost:8080/metadata/";
 const COLLECTION_ID = "20000";
-const STANDARD_SUPPLY = 1;
-const GOLD_SUPPLY = 1;
 const SCALE = new BigNumber(10).pow(18);
 const NAME = "TEST";
 const SYMBOL = "SYMB";
 const priceStandard = new BigNumber(0.1).times(SCALE);
 const priceGold = new BigNumber(0.5).times(SCALE);
-const MINT_PRICE = new BigNumber(0.2).times(SCALE);
-const COLLECTION_SIZE = 3;
+const MINT_PRICE = new BigNumber(1).times(SCALE);
+const COLLECTION_SIZE = 10;
 let artist;
 let owner;
 let user1;
 let user2;
 let user3;
+let genartAdminAddress;
 let user4;
-let stakingFundsAddress;
+let startBlock;
 const zeroAddress = "0x0000000000000000000000000000000000000000";
 let genartERC721Contract;
-let genartPaymentSplitter;
+let genartDA;
 let genartInterface;
 let genartMembership;
 let genartToken;
-
-let payeesMint;
-let sharesMint;
-let payeesRoyalty;
-let sharesRoyalty;
+let genartSharing;
+let genartDARefund;
 
 const GenArtERC721Contract = artifacts.require("GenArtERC721DA");
 const GenArtMembership = artifacts.require("GenArt");
-const GenArtInterface = artifacts.require("GenArtInterfaceV3");
-const GenArtPaymentSplitter = artifacts.require("GenArtPaymentSplitterV2");
+const GenArtInterface = artifacts.require("GenArtInterfaceV4");
 const GenArtToken = artifacts.require("GenArtGovToken");
+const GenArtDA = artifacts.require("GenArtDutchAuctionHouse");
+const GenArtSharing = artifacts.require("GenArtSharing");
+const GenArtDARefund = artifacts.require("GenArtDARefund");
 
 contract("GenArtERC721DA", function (accounts) {
   before(async () => {
@@ -50,12 +49,7 @@ contract("GenArtERC721DA", function (accounts) {
     user3 = _user3;
     user4 = _user6;
     artist = _user4;
-    stakingFundsAddress = _user5;
-
-    payeesMint = [owner, artist, stakingFundsAddress];
-    sharesMint = [175, 700, 125];
-    payeesRoyalty = [owner, artist];
-    sharesRoyalty = [500, 500];
+    genartAdminAddress = user4;
 
     genartMembership = await GenArtMembership.new(
       NAME,
@@ -94,53 +88,45 @@ contract("GenArtERC721DA", function (accounts) {
       from: user2,
       value: priceGold,
     });
-    await genartMembership.mint(user3, {
-      from: user3,
-      value: priceStandard,
-    });
-    await genartMembership.mintGold(user3, {
-      from: user3,
-      value: priceGold,
-    });
+    genartToken = await GenArtToken.new(owner);
 
-    genartInterface = await GenArtInterface.new(genartMembership.address, {
-      from: owner,
-    });
+    genartDA = await GenArtDA.new();
 
-    genartToken = await GenArtToken.new(owner, {
-      from: owner,
-    });
+    genartDARefund = await GenArtDARefund.new(genartDA.address);
 
-    genartPaymentSplitter = await GenArtPaymentSplitter.new(
-      genartToken.address,
-      {
-        from: owner,
-      }
+    genartInterface = await GenArtInterface.new(
+      genartMembership.address,
+      genartDA.address
     );
+    genartSharing = await GenArtSharing.new(
+      genartMembership.address,
+      genartToken.address,
+      genartInterface.address,
+      genartDA.address
+    );
+    await genartDA.setInterface(genartInterface.address);
+    await genartDA.setPayoutAddress(0, genartAdminAddress);
+    await genartDA.setPayoutAddress(1, genartSharing.address);
+    await genartDA.setPayoutAddress(2, genartDARefund.address);
 
     genartERC721Contract = await GenArtERC721Contract.new(
       NAME,
       SYMBOL,
       COLLECTION_URI,
+      "SCRIPT",
       COLLECTION_ID,
       COLLECTION_SIZE,
       genartInterface.address,
-      genartPaymentSplitter.address,
       genartToken.address,
-      zeroAddress
+      genartDA.address
     );
-
-    await genartPaymentSplitter.addCollectionPayment(
+    startBlock = (await web3.eth.getBlockNumber()) + 1;
+    await genartDA.addAuction(
       genartERC721Contract.address,
-      payeesMint,
-      sharesMint,
-      { from: owner }
-    );
-    await genartPaymentSplitter.addCollectionPaymentRoyalty(
-      genartERC721Contract.address,
-      payeesRoyalty,
-      sharesRoyalty,
-      { from: owner }
+      artist,
+      COLLECTION_SIZE,
+      MINT_PRICE,
+      startBlock
     );
   });
 
@@ -150,15 +136,7 @@ contract("GenArtERC721DA", function (accounts) {
     await genartERC721Contract.setPaused(false, { from: owner });
   });
   it("Should mint owner reserved", async () => {
-    const tx1 = await genartERC721Contract.mintReserved({ from: owner });
-    expectEvent(tx1, "Mint", {
-      to: owner,
-      membershipId: "0",
-      collectionId: "20000",
-      tokenId: "2000000001",
-    });
-    const tx = () => genartERC721Contract.mintReserved({ from: owner });
-    await expectError(tx, "already minted", "minting reserved is broken");
+    expect((await genartERC721Contract.balanceOf(owner)).toString()).equal("1");
   });
   it("Should fail if not GEN.ART member", async () => {
     const tx = () =>
@@ -174,79 +152,361 @@ contract("GenArtERC721DA", function (accounts) {
     await expectError(tx, "no mints", "minting access broken");
     await expectError(tx2, "not membership owner", "minting access broken");
   });
-  it("Should mint for standard GEN.ART member and split funds", async () => {
-    const tx = await genartERC721Contract.mintOne(user1, "1", {
-      from: user1,
-      value: MINT_PRICE,
-    });
-    expectEvent(tx, "Mint", {
-      to: user1,
-      membershipId: "1",
-      collectionId: "20000",
-      tokenId: "2000000002",
-    });
-    const balanceArtist = await genartPaymentSplitter.getBalanceForAccount(
-      artist
-    );
-    const balanceOwner = await genartPaymentSplitter.getBalanceForAccount(
-      owner
-    );
-    const balanceStaking = await genartPaymentSplitter.getBalanceForAccount(
-      stakingFundsAddress
-    );
-    expect(balanceOwner.toString()).equals(
-      MINT_PRICE.times(sharesMint[0] / 1000).toString()
-    );
-    expect(balanceArtist.toString()).equals(
-      MINT_PRICE.times(sharesMint[1] / 1000).toString()
-    );
-    expect(balanceStaking.toString()).equals(
-      MINT_PRICE.times(sharesMint[2] / 1000).toString()
-    );
-  });
-  it("Should fail on double mint", async () => {
-    const tx = () =>
+  it("Throw on wrong price", async () => {
+    const tx = async () =>
       genartERC721Contract.mintOne(user1, "1", {
-        value: MINT_PRICE,
         from: user1,
+        value: MINT_PRICE.times(0.99),
       });
-    await expectError(tx, "no mints available", "minting access broken");
-  });
-  it("Should fail if underpriced", async () => {
-    const tx = () =>
-      genartERC721Contract.mint(user3, "1", {
-        from: user3,
-        value: MINT_PRICE.minus(1e13),
-      });
-    const tx2 = () =>
-      genartERC721Contract.mint(user2, "2", {
-        from: user2,
-        value: MINT_PRICE.times(2).minus(1e16),
-      });
-    await expectError(tx, "transaction underpriced", "minting pricing broken");
-    await expectError(tx2, "transaction underpriced", "minting pricing broken");
-  });
-  it("Should mint for GEN.ART gold member", async () => {
-    const tx = await genartERC721Contract.mintOne(user1, "11", {
-      from: user1,
-      value: MINT_PRICE,
-    });
-    expectEvent(tx, "Mint", {
-      to: user1,
-      membershipId: "11",
-      collectionId: "20000",
-      tokenId: "2000000003",
-    });
-    // await expectError(tx, "no mints available", "minting access broken");
+
+    await expectError(tx, "wrong amount", "mint broken");
   });
 
-  it("Should fail on sell out", async () => {
-    const tx = () =>
-      genartERC721Contract.mintOne(user2, "14", {
+  it("Should mint for Standard GEN.ART member in phase 1", async () => {
+    const tx = async () =>
+      genartERC721Contract.mintOne(user1, "1", {
+        from: user1,
         value: MINT_PRICE,
+      });
+    expectEvent(await tx(), "Mint", {
+      to: user1,
+      membershipId: "1",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000002",
+    });
+
+    await expectError(tx, "no mints", "mint state broken");
+  });
+  it("Should mint for Gold GEN.ART member in phase 1", async () => {
+    expect(
+      (await genartDA.getAuctionPhase(genartERC721Contract.address)).toString()
+    ).equals("1");
+    const tx = async () =>
+      genartERC721Contract.mint(user1, 3, {
+        from: user1,
+        value: MINT_PRICE.times(3),
+      });
+    const txErr = async () =>
+      genartERC721Contract.mint(user1, 3, {
+        from: user1,
+        value: MINT_PRICE.times(3).times(1.1),
+      });
+    await expectError(txErr, "wrong amount", "mint state broken");
+
+    const tx1 = await tx();
+    expectEvent(tx1, "Mint", {
+      to: user1,
+      membershipId: "11",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000003",
+    });
+    expectEvent(tx1, "Mint", {
+      to: user1,
+      membershipId: "11",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000004",
+    });
+    expectEvent(tx1, "Mint", {
+      to: user1,
+      membershipId: "11",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000005",
+    });
+
+    await expectError(tx, "no mints", "mint state broken");
+  });
+  it("Should mint for Standard GEN.ART member in phase 2", async () => {
+    // console.log(
+    //   "price",
+    //   (await genartDA.getAuctionPrice(genartERC721Contract.address)).toString()
+    // );
+    await time.advanceBlockTo(startBlock + 12);
+
+    expect(
+      (await genartDA.getAuctionPhase(genartERC721Contract.address)).toString()
+    ).equals("2");
+
+    const tx = async (price) =>
+      genartERC721Contract.mintOne(user1, "1", {
+        from: user1,
+        value: price,
+      });
+
+    await expectError(
+      async () => tx(MINT_PRICE.times(0.79)),
+      "wrong amount",
+      "mint broken"
+    );
+
+    expectEvent(await tx(MINT_PRICE.times(0.8)), "Mint", {
+      to: user1,
+      membershipId: "1",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000006",
+    });
+  });
+  it("Should mint for Gold GEN.ART member in phase 2", async () => {
+    const tx = async () =>
+      genartERC721Contract.mintOne(user1, "11", {
+        from: user1,
+        value: MINT_PRICE.times(0.8),
+      });
+    const tx1 = await tx();
+    expectEvent(tx1, "Mint", {
+      to: user1,
+      membershipId: "11",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000007",
+    });
+
+    const availableMints =
+      await genartERC721Contract.getAvailableMintsForMembership("11");
+
+    expect(availableMints.toString()).equals("0");
+    await expectError(tx, "no mints", "mint state broken");
+  });
+  it("Should mint for Gold GEN.ART member in phase 3", async () => {
+    await time.advanceBlockTo(startBlock + 12 * 2);
+    expect(
+      (await genartDA.getAuctionPhase(genartERC721Contract.address)).toString()
+    ).equals("3");
+
+    const tx = async () =>
+      genartERC721Contract.mintOne(user1, "11", {
+        from: user1,
+        value: new BigNumber(
+          await genartDA.getAuctionPrice(genartERC721Contract.address)
+        ).times(1),
+      });
+    const tx1 = await tx();
+    expectEvent(tx1, "Mint", {
+      to: user1,
+      membershipId: "11",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000008",
+    });
+
+    const availableMints =
+      await genartERC721Contract.getAvailableMintsForMembership("11");
+
+    expect(availableMints.toString()).equals("0");
+    await expectError(tx, "no mints", "mint state broken");
+  });
+  it("Should mint for Gold GEN.ART member in phase 4", async () => {
+    await time.advanceBlockTo((await web3.eth.getBlockNumber()) + 12);
+    expect(
+      (await genartDA.getAuctionPhase(genartERC721Contract.address)).toString()
+    ).equals("4");
+    const tx = async () =>
+      genartERC721Contract.mintOne(user1, "11", {
+        from: user1,
+        value: new BigNumber(
+          await genartDA.getAuctionPrice(genartERC721Contract.address)
+        ).times(1),
+      });
+    const tx1 = await tx();
+    expectEvent(tx1, "Mint", {
+      to: user1,
+      membershipId: "11",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000009",
+    });
+
+    const availableMints =
+      await genartERC721Contract.getAvailableMintsForMembership("11");
+
+    expect(availableMints.toString()).equals("0");
+    await expectError(tx, "no mints", "mint state broken");
+  });
+  it("Throw if no mint Standard member", async () => {
+    await time.advanceBlockTo((await web3.eth.getBlockNumber()) + 12);
+    const tx = async (price) =>
+      genartERC721Contract.mintOne(user1, "1", {
+        from: user1,
+        value: price,
+      });
+
+    await expectError(
+      async () =>
+        tx(
+          new BigNumber(
+            await genartDA.getAuctionPrice(genartERC721Contract.address)
+          ).times(1)
+        ),
+      "no mints",
+      "mint state broken"
+    );
+  });
+
+  it("Public mint", async () => {
+    const tx = async () =>
+      genartERC721Contract.mintPublic(user4, 1, {
+        from: user4,
+        value: new BigNumber(
+          await genartDA.getAuctionPrice(genartERC721Contract.address)
+        ).times(1),
+      });
+
+    await expectError(tx, "not allowed to mint", "public minting broken");
+
+    await time.advanceBlockTo(startBlock + 72);
+
+    const tx1 = await genartERC721Contract.mintPublic(user4, 1, {
+      from: user4,
+      value: new BigNumber(
+        await genartDA.getAuctionPrice(genartERC721Contract.address)
+      ).times(1),
+    });
+    expectEvent(tx1, "Mint", {
+      to: user4,
+      membershipId: "0",
+      collectionId: COLLECTION_ID,
+      tokenId: "2000000010",
+    });
+  });
+  it("Should fail on sell out", async () => {
+    const tx = async () =>
+      genartERC721Contract.mintOne(user2, "12", {
+        value: new BigNumber(
+          await genartDA.getAuctionPrice(genartERC721Contract.address)
+        ).times(1),
         from: user2,
       });
     await expectError(tx, "no mints available", "minting access broken");
+  });
+
+  it("Distribute and withdraw artist funds", async () => {
+    const gasPrice = new BigNumber(40 * 1e9);
+
+    const failTx = () =>
+      genartDA.withdrawArtist(genartERC721Contract.address, {
+        from: user1,
+      });
+
+    await expectError(failTx, "only artist", "withdrawArtist broken");
+
+    const balanceOld = await web3.eth.getBalance(artist);
+
+    const withdraw = async () =>
+      genartDA.withdrawArtist(genartERC721Contract.address, {
+        from: artist,
+        gasPrice,
+      });
+
+    await expectError(withdraw, "auction not ended", "withdrawArtist broken");
+
+    await time.advanceBlockTo(startBlock + 337);
+
+    const tx = await withdraw();
+    const funds = new BigNumber(
+      await genartDA._auctionFunds(genartERC721Contract.address)
+    );
+
+    const balanceNew = await web3.eth.getBalance(artist);
+    const _balanceOld = new BigNumber(balanceOld).div(1e18).toNumber();
+    const _balanceNew = new BigNumber(balanceNew).div(1e18).toNumber();
+    const gas = new BigNumber(tx.receipt.gasUsed)
+      .times(gasPrice)
+      .div(1e18)
+      .toNumber();
+    const diff = _balanceNew - _balanceOld + gas;
+    const totalEth =
+      (4 * MINT_PRICE.toNumber() +
+        2 * MINT_PRICE.times(0.8).toNumber() +
+        1 * MINT_PRICE.times(0.8 ** 2).toNumber() +
+        2 * MINT_PRICE.times(0.8 ** 3).toNumber()) /
+      1e18;
+
+    const avgActual = new BigNumber(
+      await genartDA.calcAvgPrice(genartERC721Contract.address)
+    );
+    const avg = funds.div(COLLECTION_SIZE - 1).integerValue();
+    const refunds = MINT_PRICE.times(4).minus(avg.times(4));
+
+    console.log("av", avg.div(1e18).toNumber(), avgActual.div(1e18).toString());
+    console.log("refunds", refunds.div(1e18).toNumber());
+    console.log("totalETH", totalEth, funds.div(1e18).toNumber());
+    const artistExpected = funds.minus(refunds).times(0.7).div(1e18).toNumber();
+    expect(avg.toString()).equal(avgActual.toString());
+
+    const balanceOldAdmin = new BigNumber(
+      await web3.eth.getBalance(genartAdminAddress)
+    )
+      .div(SCALE)
+      .toNumber();
+    const balanceOldStaking = new BigNumber(
+      await web3.eth.getBalance(genartSharing.address)
+    )
+      .div(SCALE)
+      .toNumber();
+    const balanceOldRefunds = new BigNumber(
+      await web3.eth.getBalance(genartDARefund.address)
+    );
+
+    await genartDA.distributeRewards(genartERC721Contract.address, {
+      from: owner,
+    });
+
+    const balanceNewAdmin = new BigNumber(
+      await web3.eth.getBalance(genartAdminAddress)
+    )
+      .div(SCALE)
+      .toNumber();
+    const balanceNewStaking = new BigNumber(
+      await web3.eth.getBalance(genartSharing.address)
+    )
+      .div(SCALE)
+      .toNumber();
+    const balanceNewRefunds = new BigNumber(
+      await web3.eth.getBalance(genartDARefund.address)
+    );
+    console.log("refund actual", balanceNewRefunds.toString());
+    console.log("artist ", artistExpected, diff);
+    console.log(
+      "staking actual",
+      (balanceNewStaking - balanceOldStaking).toFixed(2)
+    );
+    console.log("admin actual", (balanceNewAdmin - balanceOldAdmin).toFixed(2));
+    expect(totalEth).equals(funds.div(1e18).toNumber());
+    expect(diff.toFixed(2)).equal(artistExpected.toFixed(2));
+
+    expect((balanceNewAdmin - balanceOldAdmin).toFixed(2)).equal(
+      ((totalEth - refunds.div(1e18).toNumber()) * 0.175).toFixed(2)
+    );
+    expect((balanceNewStaking - balanceOldStaking).toFixed(2)).equal(
+      ((totalEth - refunds.div(1e18).toNumber()) * 0.125).toFixed(2)
+    );
+    expect(balanceNewRefunds.minus(balanceOldRefunds).toString()).equals(
+      refunds.toString()
+    );
+  });
+
+  it("Claim refund", async () => {
+    const gasPrice = new BigNumber(40 * 1e9);
+
+    const funds = new BigNumber(
+      await genartDA._auctionFunds(genartERC721Contract.address)
+    );
+    const avg = funds.div(COLLECTION_SIZE - 1).integerValue();
+    const refunds = MINT_PRICE.times(4).minus(avg.times(4));
+    const balanceOld = await web3.eth.getBalance(user1);
+
+    const tx = await genartDARefund.claim(genartERC721Contract.address, {
+      from: user1,
+      gasPrice,
+    });
+
+    const gas = new BigNumber(tx.receipt.gasUsed) * gasPrice;
+
+    const balanceNew = new BigNumber(await web3.eth.getBalance(user1));
+    const refundActual = await genartDARefund.calcDARefunds(
+      genartERC721Contract.address,
+      user1
+    );
+    console.log("refund acc", refundActual.toString());
+    expect(balanceNew.minus(balanceOld).plus(gas).toString()).equals(
+      refunds.toString()
+    );
   });
 
   it("Should get correct tokenUri", async () => {
@@ -272,112 +532,6 @@ contract("GenArtERC721DA", function (accounts) {
 
   it("Should get tokens of owner", async () => {
     const supply = await genartERC721Contract.getTokensByOwner.call(user1);
-    expect(supply.length.toString()).equals(`2`);
-  });
-
-  it("Should release WETH", async () => {
-    await genartToken.transfer(
-      genartERC721Contract.address,
-      MINT_PRICE.toString()
-    );
-    const balance = await genartToken.balanceOf(genartERC721Contract.address);
-    expect(balance.toString()).equals(MINT_PRICE.toString());
-    await genartERC721Contract.releaseWETHRoyalties();
-    const balanceNew = await genartToken.balanceOf(
-      genartERC721Contract.address
-    );
-    expect(balanceNew.toString()).equals("0");
-  });
-
-  it("Should allow gold only", async () => {
-    const genartERC721Contract = await GenArtERC721Contract.new(
-      NAME,
-      SYMBOL,
-      COLLECTION_URI,
-      COLLECTION_ID,
-      0,
-      GOLD_SUPPLY,
-      MINT_PRICE.toString(),
-      COLLECTION_SIZE,
-      genartInterface.address,
-      genartPaymentSplitter.address,
-      artist
-    );
-
-    await genartPaymentSplitter.addCollectionPayment(
-      genartERC721Contract.address,
-      payeesMint,
-      sharesMint,
-      { from: owner }
-    );
-    await genartPaymentSplitter.addCollectionPaymentRoyalty(
-      genartERC721Contract.address,
-      payeesRoyalty,
-      sharesRoyalty,
-      { from: owner }
-    );
-    await genartERC721Contract.setPaused(false, { from: owner });
-    const tx = () =>
-      genartERC721Contract.mintOne(user1, "1", {
-        value: MINT_PRICE,
-        from: user1,
-      });
-    await expectError(tx, "no mints available", "minting access broken");
-    const tx2 = await genartERC721Contract.mintOne(user1, "11", {
-      from: user1,
-      value: MINT_PRICE,
-    });
-    expectEvent(tx2, "Mint", {
-      to: user1,
-      membershipId: "11",
-      collectionId: "20000",
-      tokenId: "2000000001",
-    });
-  });
-
-  it("Should allow standard only", async () => {
-    const genartERC721Contract = await GenArtERC721Contract.new(
-      NAME,
-      SYMBOL,
-      COLLECTION_URI,
-      COLLECTION_ID,
-      STANDARD_SUPPLY,
-      0,
-      MINT_PRICE.toString(),
-      COLLECTION_SIZE,
-      genartInterface.address,
-      genartPaymentSplitter.address,
-      artist
-    );
-
-    await genartPaymentSplitter.addCollectionPayment(
-      genartERC721Contract.address,
-      payeesMint,
-      sharesMint,
-      { from: owner }
-    );
-    await genartPaymentSplitter.addCollectionPaymentRoyalty(
-      genartERC721Contract.address,
-      payeesRoyalty,
-      sharesRoyalty,
-      { from: owner }
-    );
-    await genartERC721Contract.setPaused(false, { from: owner });
-    const tx = () =>
-      genartERC721Contract.mintOne(user1, "11", {
-        from: user1,
-        value: MINT_PRICE,
-      });
-    await expectError(tx, "no mints available", "minting access broken");
-    const tx2 = await genartERC721Contract.mintOne(user1, "1", {
-      value: MINT_PRICE,
-      from: user1,
-    });
-    expectEvent(tx2, "Mint", {
-      to: user1,
-      membershipId: "1",
-      collectionId: "20000",
-      tokenId: "2000000001",
-    });
+    expect(supply.length.toString()).equals("8");
   });
 });
