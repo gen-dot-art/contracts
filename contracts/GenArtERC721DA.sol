@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "./GenArtAccess.sol";
 import "./IGenArtMembership.sol";
 import "./IGenArtPaymentSplitterV2.sol";
-import "./IGenArtInterfaceV3.sol";
+import "./IGenArtInterface.sol";
 import "./GenArtDutchAuctionHouse.sol";
 
 /**
@@ -33,6 +33,7 @@ contract GenArtERC721DA is ERC721Enumerable, GenArtAccess, IERC2981 {
     address public _wethAddress;
     GenArtDutchAuctionHouse public _genartDA;
     string private _uri;
+    string private _script;
     bool public _paused = true;
 
     /**
@@ -49,6 +50,7 @@ contract GenArtERC721DA is ERC721Enumerable, GenArtAccess, IERC2981 {
         string memory name_,
         string memory symbol_,
         string memory uri_,
+        string memory script_,
         uint256 collectionId_,
         uint256 mintSupply_,
         address genartInterface_,
@@ -56,6 +58,7 @@ contract GenArtERC721DA is ERC721Enumerable, GenArtAccess, IERC2981 {
         address genartDA_
     ) ERC721(name_, symbol_) GenArtAccess() {
         _uri = uri_;
+        _script = script_;
         _collectionId = collectionId_;
         _mintSupply = mintSupply_;
         _genartInterface = genartInterface_;
@@ -115,7 +118,10 @@ contract GenArtERC721DA is ERC721Enumerable, GenArtAccess, IERC2981 {
         uint256 auctionStatus
     ) internal view {
         require(!_paused, "GenArtERC721DA: minting is paused");
-        require(availableMints > 0, "GenArtERC721DA: no mints available");
+        require(
+            availableMints > 0 && totalSupply() + amount <= _mintSupply,
+            "GenArtERC721DA: no mints available"
+        );
         require(
             _genartDA.getAuctionStatus(address(this)) == auctionStatus,
             "GenArtERC721DA: not allowed to mint"
@@ -128,10 +134,7 @@ contract GenArtERC721DA is ERC721Enumerable, GenArtAccess, IERC2981 {
         unchecked {
             ethAmount = _genartDA.getAuctionPrice(address(this)) * amount;
         }
-        require(
-            ethAmount <= msg.value,
-            "GenArtERC721DA: transaction underpriced"
-        );
+        require(ethAmount == msg.value, "GenArtERC721DA: wrong amount sent");
     }
 
     /**
@@ -141,21 +144,18 @@ contract GenArtERC721DA is ERC721Enumerable, GenArtAccess, IERC2981 {
      */
     function mint(address to, uint256 amount) public payable {
         // get all available mints for sender
-        uint256 availableMints = IGenArtInterfaceV3(_genartInterface)
+        uint256 availableMints = IGenArtInterface(_genartInterface)
             .getAvailableMintsForAccount(address(this), _msgSender());
         checkMint(amount, availableMints, 1);
         // get all memberships for sender
-        uint256[] memory memberships = IGenArtInterfaceV3(_genartInterface)
+        uint256[] memory memberships = IGenArtInterface(_genartInterface)
             .getMembershipsOf(_msgSender());
         uint256 minted;
         uint256 i;
         // loop until the desired amount of tokens was minted
         while (minted < amount && i < memberships.length) {
             // get available mints for membership
-            uint256 mints = _genartDA.getAvailableMintsByMembership(
-                address(this),
-                memberships[i]
-            );
+            uint256 mints = getAvailableMintsForMembership(memberships[i]);
             // mint tokens with membership and stop if desired amount reached
             uint256 j;
             for (j = 0; j < mints && minted < amount; j++) {
@@ -177,7 +177,7 @@ contract GenArtERC721DA is ERC721Enumerable, GenArtAccess, IERC2981 {
     function mintOne(address to, uint256 membershipId) public payable {
         // check if sender is owner of membership
         require(
-            IGenArtInterfaceV3(_genartInterface).ownerOfMembership(
+            IGenArtInterface(_genartInterface).ownerOfMembership(
                 membershipId
             ) == _msgSender(),
             "GenArtERC721DA: sender is not membership owner"

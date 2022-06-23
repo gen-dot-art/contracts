@@ -31,4 +31,9 @@ interface IGenArtDutchAuctionHouse {
         external
         view
         returns (uint256);
+
+    function getAvailableMintsByMembership(
+        address collection,
+        uint256 membershipId
+    ) external view returns (uint256);
 }

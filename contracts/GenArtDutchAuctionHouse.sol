@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import "./GenArtAccess.sol";
 import "./IGenArtDutchAuctionHouse.sol";
 import "./MintStateDA.sol";
-import "./IGenArtInterfaceV3.sol";
-import "./IGenArtDistributor.sol";
+import "./IGenArtInterface.sol";
+import "./IGenArtSharing.sol";
+import "./IGenArtDARefund.sol";
 
 contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     using MintStateDA for MintStateDA.State;
@@ -34,7 +35,8 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     // maps total funds earned by an auction split by phase
     mapping(address => mapping(uint256 => uint256)) public _auctionFundsByPhase;
 
-    uint256 public constant BLOCKS_PER_HOUR = 260;
+    // uint256 public constant BLOCKS_PER_HOUR = 260;
+    uint256 public constant BLOCKS_PER_HOUR = 1;
     uint256 public constant DECAY = 20;
     uint256 public constant DECAY_PER_BLOCKS = BLOCKS_PER_HOUR * 12;
     uint256 public constant BLOCKS_TO_PUBLIC_MINT = BLOCKS_PER_HOUR * 72;
@@ -47,17 +49,8 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
      */
     uint256[] public _salesShares = [700, 175, 125];
 
-    // GEN.ART | GenArtDistributor (Staking contract)
-    address[] public _payoutAddresses = [owner(), address(0)];
-
-    constructor(
-        address genartInterface_,
-        address genartPayout_,
-        address stakingContractAddress_
-    ) {
-        _genartInterface = genartInterface_;
-        _payoutAddresses = [genartPayout_, stakingContractAddress_];
-    }
+    // GEN.ART | GenArtSharing (GENART Staking contract) | GenArtDARefund
+    address[3] public _payoutAddresses = [owner(), address(0), address(0)];
 
     modifier onlyCollection(address collection) {
         require(
@@ -123,7 +116,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         return
             block.number > auction.endBlock
                 ? 0
-                : block.number >= (auction.startBlock + BLOCKS_TO_PUBLIC_MINT)
+                : block.number > (auction.startBlock + BLOCKS_TO_PUBLIC_MINT)
                 ? 2
                 : 1;
     }
@@ -141,7 +134,9 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         returns (uint256)
     {
         Auction memory auction = getAuction(collection);
-        return auction.startPrice * ((1 - DECAY / 100) ^ (phase - 1));
+        return
+            (auction.startPrice * ((100 - DECAY)**(phase - 1))) /
+            (100**(phase - 1));
     }
 
     function getAuctionPrice(address collection)
@@ -164,7 +159,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     function calcAvgPrice(address collection) public view returns (uint256) {
         return
             _auctionFunds[collection] /
-            IERC721Enumerable(collection).totalSupply();
+            (IERC721Enumerable(collection).totalSupply() - 1);
     }
 
     function getMintsByMembership(address collection, uint256 membershipId)
@@ -175,7 +170,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         return
             _mintstate[collection].getMints(
                 membershipId,
-                IGenArtInterfaceV3(_genartInterface).isGoldToken(membershipId),
+                IGenArtInterface(_genartInterface).isGoldToken(membershipId),
                 getAuctionPhase(collection)
             );
     }
@@ -183,11 +178,11 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     function getAvailableMintsByMembership(
         address collection,
         uint256 membershipId
-    ) public view returns (uint256) {
+    ) external view override returns (uint256) {
         return
             _mintstate[collection].getAvailableMints(
                 membershipId,
-                IGenArtInterfaceV3(_genartInterface).isGoldToken(membershipId),
+                IGenArtInterface(_genartInterface).isGoldToken(membershipId),
                 getAuctionPhase(collection),
                 getAuction(collection).supply,
                 IERC721Enumerable(collection).totalSupply()
@@ -217,8 +212,8 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         uint256 refundPhasesEth;
         uint256 refundPhasesSales;
         uint256 currentPhase = 1;
-        uint256 avgPriceDA = _auctionFunds[collection] /
-            IERC721Enumerable(collection).totalSupply();
+        // calculate avg price and exclude the reserved mint
+        uint256 avgPriceDA = calcAvgPrice(collection);
         while (currentPhase <= 4) {
             uint256 price = getAuctionPriceByPhase(collection, currentPhase);
             if (price > avgPriceDA) {
@@ -248,7 +243,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         _mints[msg.sender][minter][phase] += amount;
         _mintstate[msg.sender].update(
             membershipId,
-            IGenArtInterfaceV3(_genartInterface).isGoldToken(membershipId),
+            IGenArtInterface(_genartInterface).isGoldToken(membershipId),
             phase,
             amount
         );
@@ -281,8 +276,8 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     function withdrawArtist(address collection) public onlyArtist(collection) {
         Auction memory auction = getAuction(collection);
         require(
-            block.number > auction.endBlock,
-            "GenArtDutchAuctionHouse: auction not finished yet"
+            block.number > auction.endBlock + 1,
+            "GenArtDutchAuctionHouse: auction not ended yet"
         );
         require(
             !_artistsWithdrawHistory[collection],
@@ -292,7 +287,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         payable(auction.artist).transfer(calcShares(collection, 0));
     }
 
-    function distributeRevenues(address collection) public onlyAdmin {
+    function distributeRewards(address collection) external onlyAdmin {
         Auction memory auction = getAuction(collection);
         require(
             block.number > auction.endBlock,
@@ -302,13 +297,22 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
             !auction.distributed,
             "GenArtDutchAuctionHouse: already distributed"
         );
-        _auctions[collection].distributed = true;
-        payable(_payoutAddresses[0]).transfer(calcShares(collection, 1));
+        require(
+            _payoutAddresses[0] != address(0) &&
+                _payoutAddresses[1] != address(0) &&
+                _payoutAddresses[2] != address(0),
+            "GenArtDutchAuctionHouse: payout addresses not set"
+        );
         uint256 stakingRewards = calcShares(collection, 2);
         uint256 daRefunds = calcTotalDARefundAmount(collection);
-        IGenArtDistributor(_payoutAddresses[1]).receiveFunds{
-            value: stakingRewards + daRefunds
-        }(collection, stakingRewards, daRefunds);
+        _auctions[collection].distributed = true;
+        IGenArtSharing(_payoutAddresses[1]).updateRewards{
+            value: stakingRewards
+        }(BLOCKS_PER_HOUR * 24 * 30);
+        IGenArtDARefund(_payoutAddresses[2]).receiveFunds{value: daRefunds}(
+            collection
+        );
+        payable(_payoutAddresses[0]).transfer(calcShares(collection, 1));
     }
 
     function setSalesShares(uint256[] memory newShares) public onlyGenArtAdmin {
@@ -317,7 +321,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
 
     /**
     @dev set the payout address for ETH distribution
-    - `index`: 0 (GEN.ART) | 1 (Staking contract)
+    - `index`: 0 (GEN.ART) | 1 (Staking contract) | 2 (Refund contract)
     - `payoutAddress`: new address
  */
     function setPayoutAddress(uint8 index, address payoutAddress)
@@ -325,6 +329,13 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         onlyGenArtAdmin
     {
         _payoutAddresses[index] = payoutAddress;
+    }
+
+    /**
+     *@dev Set Interface contract address
+     */
+    function setInterface(address interfaceAddress) public onlyAdmin {
+        _genartInterface = interfaceAddress;
     }
 
     receive() external payable {
