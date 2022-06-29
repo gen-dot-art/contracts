@@ -87,13 +87,9 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         _;
     }
 
-    /**
-     * @notice Deposit staked tokens (and collect reward tokens if requested)
-     * @param amount amount to deposit (in GENART)
-     */
-    function deposit(uint256[] memory membershipIds, uint256 amount)
-        external
-        nonReentrant
+    function checkDeposit(uint256[] memory membershipIds, uint256 amount)
+        internal
+        view
     {
         require(
             amount >=
@@ -125,7 +121,17 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
                 "GenArtSharing: no memberships required"
             );
         }
+    }
 
+    /**
+     * @notice Deposit staked tokens (and collect reward tokens if requested)
+     * @param amount amount to deposit (in GENART)
+     */
+    function deposit(uint256[] memory membershipIds, uint256 amount)
+        external
+        nonReentrant
+    {
+        checkDeposit(membershipIds, amount);
         _deposit(membershipIds, amount);
     }
 
