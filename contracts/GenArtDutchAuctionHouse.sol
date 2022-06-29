@@ -151,9 +151,15 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
                 block.number <= auction.endBlock,
             "GenArtDutchAuctionHouse: auction closed"
         );
-        uint256 phase = getAuctionPhase(collection);
 
-        return getAuctionPriceByPhase(collection, phase);
+        uint8 status = getAuctionStatus(collection);
+        return
+            status == 2
+                ? calcAvgPrice(collection)
+                : getAuctionPriceByPhase(
+                    collection,
+                    getAuctionPhase(collection)
+                );
     }
 
     function calcAvgPrice(address collection) public view returns (uint256) {
