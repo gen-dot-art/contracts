@@ -314,7 +314,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         for (uint256 i = memberships.length; i >= 1; i--) {
             userInfo[msg.sender].membershipIds.pop();
             membershipOwners[memberships[i - 1]] = address(0);
-            IERC721(genartMembership).safeTransferFrom(
+            IERC721(genartMembership).transferFrom(
                 address(this),
                 msg.sender,
                 memberships[i - 1]
