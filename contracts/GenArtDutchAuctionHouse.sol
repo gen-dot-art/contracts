@@ -266,15 +266,18 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         returns (uint256)
     {
         uint256 refundPhase;
-        uint256 currentPhase = 1;
+        uint256 currentPhase = 4;
+        // get average price
         uint256 avgPriceDA = calcAvgPrice(collection);
 
-        while (currentPhase <= 4) {
+        // loop through all phases
+        while (currentPhase >= 1) {
             if (getAuctionPriceByPhase(collection, currentPhase) > avgPriceDA) {
                 refundPhase = currentPhase;
+                // break the loop since remaining phases must be refunded too
                 break;
             }
-            currentPhase++;
+            currentPhase--;
         }
         return refundPhase;
     }
