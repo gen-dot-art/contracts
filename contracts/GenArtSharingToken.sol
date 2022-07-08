@@ -74,6 +74,7 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
      * @notice Deposit staked tokens (and collect reward tokens if requested)
      */
     function deposit(uint256[] memory membershipIds) external nonReentrant {
+        // revert if no memberships passed
         require(
             membershipIds.length > 0,
             "GenArtSharing: minimum 1 membership required"
@@ -93,6 +94,8 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
                 address(this),
                 membershipIds[i]
             );
+
+            // 5 shares per gold membership. 1 share for standard memberships
             shares += IGenArtInterface(genartInterface).isGoldToken(
                 membershipIds[i]
             )
@@ -101,6 +104,8 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
             // save the membership token Ids
             userInfo[msg.sender].membershipIds.push(membershipIds[i]);
         }
+
+        // adjust internal shares
         userInfo[msg.sender].shares += shares;
         totalShares += shares;
 
@@ -245,7 +250,7 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
     }
 
     /**
-     * @notice Withdraw staked tokens (and collect reward tokens if requested)
+     * @notice Withdraw staked tokens and collect rewards
      */
     function _withdraw() internal {
         // harvest rewards
@@ -254,6 +259,8 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
         uint256 shares = userInfo[msg.sender].shares;
         uint256[] memory memberships = userInfo[msg.sender].membershipIds;
 
+
+        // adjust internal shares
         userInfo[msg.sender].shares = 0;
         totalShares -= shares;
 

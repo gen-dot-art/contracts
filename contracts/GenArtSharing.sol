@@ -87,10 +87,14 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         _;
     }
 
+    /**
+     * checks requirements for depositing a stake
+     */
     function checkDeposit(uint256[] memory membershipIds, uint256 amount)
         internal
         view
     {
+        // check required amount of tokens
         require(
             amount >=
                 (
@@ -102,7 +106,9 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         );
 
         if (userInfo[msg.sender].shares == 0) {
+            // if no tokens and memberships staked yet check if required memberships are passed
             if (membershipIds.length == 1) {
+                // in case 1 memeberships was passed it has to be a gold one
                 require(
                     IGenArtInterfaceV3(genartInterface).isGoldToken(
                         membershipIds[0]
@@ -116,6 +122,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
                 );
             }
         } else {
+            // revent if there is an active stake and memberships were passed
             require(
                 membershipIds.length == 0,
                 "GenArtSharing: no memberships required"
@@ -268,7 +275,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     }
 
     /**
-     * @notice Return reward per token
+     * @notice Return reward per share
      */
     function _rewardPerToken() internal view returns (uint256) {
         if (totalShares == 0) {
@@ -297,7 +304,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     }
 
     /**
-     * @notice Withdraw staked tokens (and collect reward tokens if requested)
+     * @notice Withdraw staked tokens and memberships and collect rewards
      */
     function _withdraw() internal {
         // harvest rewards
@@ -306,6 +313,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         uint256 shares = userInfo[msg.sender].shares;
         uint256[] memory memberships = userInfo[msg.sender].membershipIds;
 
+        // adjust internal shares
         userInfo[msg.sender].shares = 0;
         totalShares -= shares;
 

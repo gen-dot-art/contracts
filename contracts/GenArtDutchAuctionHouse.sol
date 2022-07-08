@@ -121,10 +121,13 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
                 : 1;
     }
 
+    /**
+     * @notice An auction has 4 phases which are determinted by amount of blocks passed since start of auction
+     */
     function getAuctionPhase(address collection) public view returns (uint256) {
         uint256 lambda = ((block.number - getAuction(collection).startBlock) /
             DECAY_PER_BLOCKS) + 1;
-        // Maximum 4 price reductions
+        // Maximum 4 phases
         return lambda > 4 ? 4 : lambda;
     }
 
@@ -146,6 +149,8 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         returns (uint256)
     {
         Auction memory auction = getAuction(collection);
+
+        // revert if auction is closed
         require(
             block.number >= auction.startBlock &&
                 block.number <= auction.endBlock,
@@ -153,6 +158,8 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         );
 
         uint8 status = getAuctionStatus(collection);
+
+        // return the price based on the auction status
         return
             status == 2
                 ? calcAvgPrice(collection)
@@ -163,6 +170,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     }
 
     function calcAvgPrice(address collection) public view returns (uint256) {
+        // caclulate the average price and exclude the reserved mint
         return
             _auctionFunds[collection] /
             (IERC721Enumerable(collection).totalSupply() - 1);
@@ -210,6 +218,9 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         return value;
     }
 
+    /**
+     * @notice Calculate total ETH amount to be refunded
+     */
     function calcTotalDARefundAmount(address collection)
         internal
         view
@@ -218,8 +229,9 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         uint256 refundPhasesEth;
         uint256 refundPhasesSales;
         uint256 currentPhase = 1;
-        // calculate avg price and exclude the reserved mint
+        // get avg price and exclude the reserved mint
         uint256 avgPriceDA = calcAvgPrice(collection);
+
         while (currentPhase <= 4) {
             uint256 price = getAuctionPriceByPhase(collection, currentPhase);
             if (price > avgPriceDA) {
@@ -239,27 +251,44 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         return totalDARefunds;
     }
 
+    /**
+     * @notice Whenever a token is minted in `GenArtERC721DA` this function is been called
+     */
     function saveMint(
         uint256 membershipId,
         address minter,
         uint256 amount
     ) external onlyCollection(msg.sender) {
         uint256 phase = getAuctionPhase(msg.sender);
+
+        // calculate amount of ETH minter has spend
         uint256 value = amount * getAuctionPriceByPhase(msg.sender, phase);
+
+        // save amount per collection, minter and phase
         _mints[msg.sender][minter][phase] += amount;
+
+        // update mint state
         _mintstate[msg.sender].update(
             membershipId,
             IGenArtInterface(_genartInterface).isGoldToken(membershipId),
             phase,
             amount
         );
+
+        // adjust auction funds
         _auctionFundsByPhase[msg.sender][phase] += value;
     }
 
+    /**
+     * @notice External function called by GenArtERC721DA contract to send funds to the auction house
+     */
     function sendFunds() external payable onlyCollection(msg.sender) {
         _auctionFunds[msg.sender] += msg.value;
     }
 
+    /**
+     * @notice Determine the phases that need to be refunded
+     */
     function calcRefundPhase(address collection)
         external
         view
@@ -282,48 +311,78 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         return refundPhase;
     }
 
+    /**
+     * @notice function for artists to withdraw their shares
+     */
     function withdrawArtist(address collection) public onlyArtist(collection) {
         Auction memory auction = getAuction(collection);
+
+        // revert if auction not ended yet
         require(
             block.number > auction.endBlock + 1,
             "GenArtDutchAuctionHouse: auction not ended yet"
         );
+
+        // revert if funds for collection were already withdrawn
         require(
             !_artistsWithdrawHistory[collection],
             "GenArtDutchAuctionHouse: already widthdrawn"
         );
+
         _artistsWithdrawHistory[collection] = true;
+
+        // send fund to artist
         payable(auction.artist).transfer(calcShares(collection, 0));
     }
 
     function distributeRewards(address collection) external onlyAdmin {
         Auction memory auction = getAuction(collection);
+
+        // revert if auction not ended yet
         require(
             block.number > auction.endBlock,
             "GenArtDutchAuctionHouse: auction not finished yet"
         );
+
+        // revert if funds for collection were already distributed
         require(
             !auction.distributed,
             "GenArtDutchAuctionHouse: already distributed"
         );
+
+        // check if payout addresses were set
         require(
             _payoutAddresses[0] != address(0) &&
                 _payoutAddresses[1] != address(0) &&
                 _payoutAddresses[2] != address(0),
             "GenArtDutchAuctionHouse: payout addresses not set"
         );
+
+        // calculate rewards for token stakers
         uint256 stakingRewards = calcShares(collection, 2);
+
+        // calculate DA refund
         uint256 daRefunds = calcTotalDARefundAmount(collection);
+
         _auctions[collection].distributed = true;
+
+        // send rewards to staking contact
         IGenArtSharing(_payoutAddresses[1]).updateRewards{
             value: stakingRewards
         }(BLOCKS_PER_HOUR * 24 * 30);
+
+        // send funds to DA refund contract
         IGenArtDARefund(_payoutAddresses[2]).receiveFunds{value: daRefunds}(
             collection
         );
+
+        // send fund to GA admin
         payable(_payoutAddresses[0]).transfer(calcShares(collection, 1));
     }
 
+    /**
+     * @notice set payout addresses
+     */
     function setSalesShares(uint256[] memory newShares) public onlyGenArtAdmin {
         _salesShares = newShares;
     }
