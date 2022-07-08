@@ -354,7 +354,7 @@ contract("GenArtERC721DA", function (accounts) {
     const tx1 = await genartERC721Contract.mintPublic(user4, 1, {
       from: user4,
       value: new BigNumber(
-        await genartDA.getAuctionPrice(genartERC721Contract.address)
+        await genartDA.calcAvgPrice(genartERC721Contract.address)
       ).times(1),
     });
     expectEvent(tx1, "Mint", {
@@ -401,8 +401,12 @@ contract("GenArtERC721DA", function (accounts) {
     const funds = new BigNumber(
       await genartDA._auctionFunds(genartERC721Contract.address)
     );
-
+    const avgActual = new BigNumber(
+      await genartDA.calcAvgPrice(genartERC721Contract.address)
+    );
+    const avg = funds.div(COLLECTION_SIZE - 1).integerValue();
     const balanceNew = await web3.eth.getBalance(artist);
+
     const _balanceOld = new BigNumber(balanceOld).div(1e18).toNumber();
     const _balanceNew = new BigNumber(balanceNew).div(1e18).toNumber();
     const gas = new BigNumber(tx.receipt.gasUsed)
@@ -414,13 +418,10 @@ contract("GenArtERC721DA", function (accounts) {
       (4 * MINT_PRICE.toNumber() +
         2 * MINT_PRICE.times(0.8).toNumber() +
         1 * MINT_PRICE.times(0.8 ** 2).toNumber() +
-        2 * MINT_PRICE.times(0.8 ** 3).toNumber()) /
+        1 * MINT_PRICE.times(0.8 ** 3).toNumber() +
+        1 * avgActual) /
       1e18;
 
-    const avgActual = new BigNumber(
-      await genartDA.calcAvgPrice(genartERC721Contract.address)
-    );
-    const avg = funds.div(COLLECTION_SIZE - 1).integerValue();
     const refunds = MINT_PRICE.times(4).minus(avg.times(4));
 
     console.log("av", avg.div(1e18).toNumber(), avgActual.div(1e18).toString());
