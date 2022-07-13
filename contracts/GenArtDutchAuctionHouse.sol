@@ -170,10 +170,15 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     }
 
     function calcAvgPrice(address collection) public view returns (uint256) {
+        uint256 supply = IERC721Enumerable(collection).totalSupply();
+
+        if (supply <= 1) {
+            // in case no items were sold during the auction there is no avg price
+            // but the price of the last phase
+            return getAuctionPriceByPhase(collection, 4);
+        }
         // caclulate the average price and exclude the reserved mint
-        return
-            _auctionFunds[collection] /
-            (IERC721Enumerable(collection).totalSupply() - 1);
+        return _auctionFunds[collection] / (supply - 1);
     }
 
     function getMintsByMembership(address collection, uint256 membershipId)
