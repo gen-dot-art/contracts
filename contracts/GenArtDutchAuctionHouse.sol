@@ -47,7 +47,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
      @dev Shares according to GIP# #0001
           Artist | GEN.ART | GEN.ART Token stakers
      */
-    uint256[] public _salesShares = [700, 175, 125];
+    uint256[3] public _salesShares = [700, 175, 125];
 
     // GEN.ART | GenArtSharing (GENART Staking contract) | GenArtDARefund
     address[3] public _payoutAddresses = [owner(), address(0), address(0)];
@@ -388,7 +388,15 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     /**
      * @notice set payout addresses
      */
-    function setSalesShares(uint256[] memory newShares) public onlyGenArtAdmin {
+    function setSalesShares(uint256[3] memory newShares) public onlyGenArtAdmin {
+        uint256 totalShares;
+        for (uint8 i; i < newShares.length; i++) {
+            totalShares += newShares[i];
+        }
+        require(
+            totalShares == 1000,
+            "GenArtDutchAuctionHouse: total shares must be 1000"
+        );
         _salesShares = newShares;
     }
 
