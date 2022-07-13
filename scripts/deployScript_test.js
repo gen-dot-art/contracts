@@ -14,14 +14,14 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const NAME = "Terroir by GEN.ART";
-  const SYM = "TRO";
+  const NAME = "Hypercopic by Dominikus";
+  const SYM = "HYP";
   const URI = "https://test-api.gen.art/public/attributes/";
-  const COLLECTION_ID = "30000";
+  const COLLECTION_ID = "30001";
   const STANDARD_SUPPLY = 1;
-  const GOLD_SUPPLY = 5;
-  const PRICE = 0.125;
-  const MINT_SUPPLY = 650;
+  const GOLD_SUPPLY = 1;
+  const PRICE = 0.15;
+  const MINT_SUPPLY = 400;
   const WETH = "0xc778417E063141139Fce010982780140Aa0cD5Ab";
   const GENART_INTERFACE = "0x6d76Fe1289323b4eD689BffAF96bd8172931c957";
   const GenArtERC721 = await hre.ethers.getContractFactory(

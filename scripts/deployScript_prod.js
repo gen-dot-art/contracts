@@ -33,15 +33,15 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const htmlFile = "terroir.html";
-  const NAME = "Terroir by GEN.ART";
-  const SYM = "TRO";
+  const htmlFile = "hyperscopic_minified.html";
+  const NAME = "Hyperscopic by Dominikus";
+  const SYM = "HYP";
   const URI = "https://api.gen.art/public/attributes/";
-  const COLLECTION_ID = "30000";
+  const COLLECTION_ID = "30001";
   const STANDARD_SUPPLY = 1;
-  const GOLD_SUPPLY = 5;
-  const PRICE = 0.125;
-  const MINT_SUPPLY = 650;
+  const GOLD_SUPPLY = 1;
+  const PRICE = 0.15;
+  const MINT_SUPPLY = 400;
   const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
   const GENART_INTERFACE = "0xf09473B9e7D00F505f467B344f3907a948E38Da0";
   const SCRIPT = fs.readFileSync(`./tmp/${htmlFile}`, { encoding: "utf-8" });
@@ -80,6 +80,7 @@ async function main() {
   const ans = await askQuestion(`
 Are you sure you want to deploy to MAINNET?\n${strArgs}\n
 Price in ETH: ${PRICE}
+Script File: ${htmlFile}
 Script (KB): ${byteCount(SCRIPT) / 1000}
   `);
 
