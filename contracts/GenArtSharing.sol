@@ -15,7 +15,7 @@ import "./GenArtDutchAuctionHouse.sol";
 contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     using SafeERC20 for IERC20;
     struct UserInfo {
-        uint256 shares; // shares of token staked
+        uint256 tokens; // shares of token staked
         uint256[] membershipIds;
         uint256 userRewardPerTokenPaid; // user reward per token paid
         uint256 rewards; // pending rewards
@@ -37,7 +37,8 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     uint256 public rewardPerTokenStored;
 
     // Total existing shares
-    uint256 public totalShares;
+    uint256 public totalTokenShares;
+    uint256 public totalMembershipShares;
 
     mapping(address => UserInfo) public userInfo;
 
@@ -48,6 +49,9 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     address public genartInterface;
 
     address public genartMembership;
+
+    uint256 public weightFactorTokens = 5;
+    uint256 public weightFactorMemberships = 1;
 
     mapping(uint256 => address) public membershipOwners;
 
@@ -90,7 +94,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     /**
      * checks requirements for depositing a stake
      */
-    function checkDeposit(uint256[] memory membershipIds, uint256 amount)
+    function _checkDeposit(uint256[] memory membershipIds, uint256 amount)
         internal
         view
     {
@@ -98,34 +102,16 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         require(
             amount >=
                 (
-                    userInfo[msg.sender].shares == 0
+                    userInfo[msg.sender].membershipIds.length == 0
                         ? 4000 * PRECISION_FACTOR
                         : PRECISION_FACTOR
                 ),
             "GenArtSharing: amount too small"
         );
-
-        if (userInfo[msg.sender].shares == 0) {
-            // if no tokens and memberships staked yet check if required memberships are passed
-            if (membershipIds.length == 1) {
-                // in case 1 memeberships was passed it has to be a gold one
-                require(
-                    IGenArtInterfaceV3(genartInterface).isGoldToken(
-                        membershipIds[0]
-                    ),
-                    "GenArtSharing: 5 Standard or 1 Gold membership required"
-                );
-            } else {
-                require(
-                    membershipIds.length == 5,
-                    "GenArtSharing: 5 Standard or 1 Gold membership required"
-                );
-            }
-        } else {
-            // revent if there is an active stake and memberships were passed
+        if (userInfo[msg.sender].membershipIds.length == 0) {
             require(
-                membershipIds.length == 0,
-                "GenArtSharing: no memberships required"
+                membershipIds.length > 0,
+                "GenArtSharing: one GEN.ART membership required"
             );
         }
     }
@@ -138,7 +124,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         external
         nonReentrant
     {
-        checkDeposit(membershipIds, amount);
+        _checkDeposit(membershipIds, amount);
         _deposit(membershipIds, amount);
     }
 
@@ -156,14 +142,16 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
             // save the membership token Ids
             userInfo[msg.sender].membershipIds.push(membershipIds[i]);
             membershipOwners[membershipIds[i]] = msg.sender;
+            // adjust internal membership shares
+            totalMembershipShares += getMembershipShareValue(membershipIds[i]);
         }
 
         // Transfer GENART tokens to this address
         genartToken.safeTransferFrom(msg.sender, address(this), amount);
 
-        // Adjust internal shares
-        userInfo[msg.sender].shares += amount;
-        totalShares += amount;
+        // Adjust internal token shares
+        userInfo[msg.sender].tokens += amount;
+        totalTokenShares += amount;
 
         emit Deposit(msg.sender, amount);
     }
@@ -200,7 +188,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
      * @notice Withdraw all staked tokens (and collect reward tokens if requested)
      */
     function withdraw() external nonReentrant {
-        require(userInfo[msg.sender].shares > 0, "GenArtSharing: zero shares");
+        require(userInfo[msg.sender].tokens > 0, "GenArtSharing: zero shares");
         _withdraw();
     }
 
@@ -262,9 +250,54 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         returns (uint256)
     {
         return
-            ((userInfo[user].shares *
-                (_rewardPerToken() - (userInfo[user].userRewardPerTokenPaid))) /
+            (((getUserSharesAbs(user)) *
+                (_rewardPerShare() - (userInfo[user].userRewardPerTokenPaid))) /
                 PRECISION_FACTOR) + userInfo[user].rewards;
+    }
+
+    /**
+     * @notice Return absolute total shares
+     */
+    function getTotalSharesAbs() public view returns (uint256) {
+        return
+            (weightFactorTokens * totalTokenShares) +
+            (weightFactorMemberships * totalMembershipShares);
+    }
+
+    /**
+     * @notice Return weighted shares of user
+     */
+    function getUserSharesAbs(address user) public view returns (uint256) {
+        uint256 userMembershipShares;
+        for (uint256 i = 0; i < userInfo[user].membershipIds.length; i++) {
+            userMembershipShares += getMembershipShareValue(
+                userInfo[user].membershipIds[i]
+            );
+        }
+
+        unchecked {
+            return (weightFactorTokens *
+                userInfo[user].tokens +
+                weightFactorMemberships *
+                userMembershipShares);
+        }
+    }
+
+    /**
+     * @notice Return share value of a membership based on tier
+     */
+    function getMembershipShareValue(uint256 membershipId)
+        internal
+        view
+        returns (uint256)
+    {
+        // 5 shares per gold membership. 1 share for standard memberships
+        return
+            (
+                IGenArtInterface(genartInterface).isGoldToken(membershipId)
+                    ? 5
+                    : 1
+            ) * PRECISION_FACTOR;
     }
 
     /**
@@ -277,7 +310,8 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     /**
      * @notice Return reward per share
      */
-    function _rewardPerToken() internal view returns (uint256) {
+    function _rewardPerShare() internal view returns (uint256) {
+        uint256 totalShares = getTotalSharesAbs();
         if (totalShares == 0) {
             return rewardPerTokenStored;
         }
@@ -295,7 +329,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
      */
     function _updateReward(address _user) internal {
         if (block.number != lastUpdateBlock) {
-            rewardPerTokenStored = _rewardPerToken();
+            rewardPerTokenStored = _rewardPerShare();
             lastUpdateBlock = _lastRewardBlock();
         }
 
@@ -310,18 +344,23 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         // harvest rewards
         _harvest();
 
-        uint256 shares = userInfo[msg.sender].shares;
+        uint256 tokens = userInfo[msg.sender].tokens;
         uint256[] memory memberships = userInfo[msg.sender].membershipIds;
 
-        // adjust internal shares
-        userInfo[msg.sender].shares = 0;
-        totalShares -= shares;
+        // adjust internal token shares
+        userInfo[msg.sender].tokens = 0;
+        totalTokenShares -= tokens;
 
-        // Transfer GRNART tokens to sender
-        genartToken.safeTransfer(msg.sender, shares);
+        // Transfer GENART tokens to sender
+        genartToken.safeTransfer(msg.sender, tokens);
         for (uint256 i = memberships.length; i >= 1; i--) {
+            // remove membership token id from user info object
             userInfo[msg.sender].membershipIds.pop();
             membershipOwners[memberships[i - 1]] = address(0);
+            // adjust internal membership shares
+            totalMembershipShares -= getMembershipShareValue(
+                memberships[i - 1]
+            );
             IERC721(genartMembership).transferFrom(
                 address(this),
                 msg.sender,
@@ -329,7 +368,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
             );
         }
 
-        emit Withdraw(msg.sender, shares);
+        emit Withdraw(msg.sender, tokens);
     }
 
     function emergencyWithdraw(uint256 amount) public onlyOwner {

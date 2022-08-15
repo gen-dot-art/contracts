@@ -27,6 +27,8 @@ const GenArtMembership = artifacts.require("GenArt");
 const GenArtInterface = artifacts.require("GenArtInterfaceV3");
 const GenArtToken = artifacts.require("GenArtGovToken");
 
+const reward = new BigNumber(1 * 1e18);
+
 contract("GenArtSharing", function (accounts) {
   before(async () => {
     const [_owner, _user1, _user2, _user3, _user4, _user5, _user6] = accounts;
@@ -61,6 +63,14 @@ contract("GenArtSharing", function (accounts) {
     await genartMembership.mint(user2, {
       from: user2,
       value: priceStandard,
+    });
+    await genartMembership.mintGold(user2, {
+      from: user2,
+      value: priceGold,
+    });
+    await genartMembership.mintGold(user2, {
+      from: user2,
+      value: priceGold,
     });
     await genartMembership.mintGold(user2, {
       from: user2,
@@ -120,13 +130,13 @@ contract("GenArtSharing", function (accounts) {
     );
 
     await expectError(
-      () =>
-        stake(
-          stakingMembershipsUser1.slice(0, 2),
-          new BigNumber(10_000 * 1e18),
-          user1
-        ),
-      "5 Standard or 1 Gold membership required",
+      () => stake([], new BigNumber(10_000 * 1e18), user1),
+      "membership required",
+      "deposit broken"
+    );
+    await expectError(
+      () => stake([], new BigNumber(3999 * 1e18), user1),
+      "amount too small",
       "deposit broken"
     );
 
@@ -156,11 +166,6 @@ contract("GenArtSharing", function (accounts) {
 
     await stake(stakingMemberships, new BigNumber(15_000 * 1e18), user2);
 
-    await expectError(
-      () => stake(stakingMemberships, new BigNumber(15_000 * 1e18), user2),
-      "no memberships required",
-      "deposit broken"
-    );
     await stake([], new BigNumber(15_000 * 1e18), user2);
 
     const contractMemberships = await genartMembership.getTokensByOwner(
@@ -169,27 +174,24 @@ contract("GenArtSharing", function (accounts) {
     const tokenBalance = await genartToken.balanceOf(
       genartSharingContract.address
     );
-    expect(contractMemberships.length).eqls(6);
+    expect(contractMemberships.length).eqls(8);
     expect(tokenBalance.toString()).eqls(
       new BigNumber(40_000 * 1e18).toString()
     );
   });
 
   it("Update rewards", async () => {
-    const reward = new BigNumber(1 * 1e18);
     await genartSharingContract.updateRewards(10, {
       from: user4,
       value: reward,
     });
     await time.advanceBlockTo((await web3.eth.getBlockNumber()) + 10);
     const balance = await web3.eth.getBalance(genartSharingContract.address);
-
+    // console.log("balance", (Number(balance) / 1e18).toString());
     expect(balance.toString()).equals(reward.toString());
   });
 
   it("Throw if no permissions", async () => {
-    const reward = new BigNumber(1 * 1e18);
-
     const tx = async () =>
       genartSharingContract.updateRewards(10, {
         from: user1,
@@ -212,7 +214,14 @@ contract("GenArtSharing", function (accounts) {
       from: user1,
       gasPrice,
     });
+    // const totalShares = await genartSharingContract.getTotalSharesAbs();
 
+    // const userShares = await genartSharingContract.getUserSharesAbs(user1);
+
+    // console.log({
+    //   totalShares: new BigNumber(totalShares).div(1e18).toString(),
+    //   userShares: new BigNumber(userShares).div(1e18).toString(),
+    // });
     const balanceNew = await web3.eth.getBalance(user1);
 
     const _balanceOld = new BigNumber(balanceOld).div(1e18).toNumber();
@@ -224,7 +233,8 @@ contract("GenArtSharing", function (accounts) {
 
     const diff = _balanceNew - _balanceOld + gas;
 
-    expect(diff.toFixed(2)).eqls("0.25");
+    const share = ((10_000 / (10_000 + 30_000)) * 5 + 5 / (5 + 15)) / 6;
+    expect(diff.toFixed(2)).eqls((1 * share).toFixed(2));
   });
   it("harvest user2", async () => {
     const gasPrice = new BigNumber(40 * 1e9);
@@ -245,7 +255,8 @@ contract("GenArtSharing", function (accounts) {
 
     const diff = _balanceNew - _balanceOld + gas;
 
-    expect(diff.toFixed(2)).eqls("0.75");
+    const share = ((30_000 / (10_000 + 30_000)) * 5 + 15 / (5 + 15)) / 6;
+    expect(diff.toFixed(2)).eqls((1 * share).toFixed(2));
   });
 
   it("Throw if 0 rewards to harvest", async () => {
