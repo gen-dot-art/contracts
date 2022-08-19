@@ -22,6 +22,7 @@ let user2;
 let user3;
 let genartAdminAddress;
 let user4;
+let treasury;
 let startBlock;
 const zeroAddress = "0x0000000000000000000000000000000000000000";
 let genartERC721Contract;
@@ -30,6 +31,7 @@ let genartInterface;
 let genartMembership;
 let genartToken;
 let genartSharing;
+let genartDistributor;
 let genartDARefund;
 
 const GenArtERC721Contract = artifacts.require("GenArtERC721DA");
@@ -38,6 +40,7 @@ const GenArtInterface = artifacts.require("GenArtInterfaceV4");
 const GenArtToken = artifacts.require("GenArtGovToken");
 const GenArtDA = artifacts.require("GenArtDutchAuctionHouse");
 const GenArtSharing = artifacts.require("GenArtSharing");
+const GenArtDistributor = artifacts.require("GenArtDistributor");
 const GenArtDARefund = artifacts.require("GenArtDARefund");
 
 contract("GenArtERC721DA", function (accounts) {
@@ -48,6 +51,7 @@ contract("GenArtERC721DA", function (accounts) {
     user2 = _user2;
     user3 = _user3;
     user4 = _user6;
+    treasury = _user5;
     artist = _user4;
     genartAdminAddress = user4;
 
@@ -104,9 +108,13 @@ contract("GenArtERC721DA", function (accounts) {
       genartInterface.address,
       genartDA.address
     );
+    genartDistributor = await GenArtDistributor.new(
+      treasury,
+      genartSharing.address
+    );
     await genartDA.setInterface(genartInterface.address);
     await genartDA.setPayoutAddress(0, genartAdminAddress);
-    await genartDA.setPayoutAddress(1, genartSharing.address);
+    await genartDA.setPayoutAddress(1, genartDistributor.address);
     await genartDA.setPayoutAddress(2, genartDARefund.address);
 
     genartERC721Contract = await GenArtERC721Contract.new(
@@ -126,7 +134,8 @@ contract("GenArtERC721DA", function (accounts) {
       artist,
       COLLECTION_SIZE,
       MINT_PRICE,
-      startBlock
+      startBlock,
+      [1, 1, 3, 1]
     );
   });
 
@@ -436,7 +445,7 @@ contract("GenArtERC721DA", function (accounts) {
       .div(SCALE)
       .toNumber();
     const balanceOldStaking = new BigNumber(
-      await web3.eth.getBalance(genartSharing.address)
+      await web3.eth.getBalance(genartDistributor.address)
     )
       .div(SCALE)
       .toNumber();
@@ -454,7 +463,7 @@ contract("GenArtERC721DA", function (accounts) {
       .div(SCALE)
       .toNumber();
     const balanceNewStaking = new BigNumber(
-      await web3.eth.getBalance(genartSharing.address)
+      await web3.eth.getBalance(genartDistributor.address)
     )
       .div(SCALE)
       .toNumber();
