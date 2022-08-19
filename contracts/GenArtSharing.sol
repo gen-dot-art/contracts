@@ -3,6 +3,8 @@
 pragma solidity ^0.8.0;
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IERC20, SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "./IGenArtInterfaceV3.sol";
 import "./GenArtAccess.sol";
 
 /**
@@ -292,7 +294,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         // 5 shares per gold membership. 1 share for standard memberships
         return
             (
-                IGenArtInterface(genartInterface).isGoldToken(membershipId)
+                IGenArtInterfaceV3(genartInterface).isGoldToken(membershipId)
                     ? 5
                     : 1
             ) * PRECISION_FACTOR;
