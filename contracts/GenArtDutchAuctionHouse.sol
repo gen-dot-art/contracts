@@ -43,8 +43,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     address public _genartInterface;
 
     /**
-     @dev Shares according to GIP# #0001
-          Artist | GEN.ART | GEN.ART Token stakers
+     @dev Artist | GEN.ART | GEN.ART Treausry/Distributor
      */
     uint256[3] public _salesShares = [700, 175, 125];
 
