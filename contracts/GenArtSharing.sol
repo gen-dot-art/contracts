@@ -132,7 +132,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
             userInfo[msg.sender].membershipIds.push(membershipIds[i]);
             membershipOwners[membershipIds[i]] = msg.sender;
             // adjust internal membership shares
-            totalMembershipShares += getMembershipShareValue(membershipIds[i]);
+            totalMembershipShares += _getMembershipShareValue(membershipIds[i]);
         }
 
         // Transfer GENART tokens to this address
@@ -259,7 +259,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     function getUserSharesAbs(address user) public view returns (uint256) {
         uint256 userMembershipShares;
         for (uint256 i = 0; i < userInfo[user].membershipIds.length; i++) {
-            userMembershipShares += getMembershipShareValue(
+            userMembershipShares += _getMembershipShareValue(
                 userInfo[user].membershipIds[i]
             );
         }
@@ -275,7 +275,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     /**
      * @notice Return share value of a membership based on tier
      */
-    function getMembershipShareValue(uint256 membershipId)
+    function _getMembershipShareValue(uint256 membershipId)
         internal
         view
         returns (uint256)
@@ -347,7 +347,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
             userInfo[msg.sender].membershipIds.pop();
             membershipOwners[memberships[i - 1]] = address(0);
             // adjust internal membership shares
-            totalMembershipShares -= getMembershipShareValue(
+            totalMembershipShares -= _getMembershipShareValue(
                 memberships[i - 1]
             );
             IERC721(genartMembership).transferFrom(
