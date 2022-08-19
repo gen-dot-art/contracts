@@ -71,7 +71,8 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         address artist,
         uint256 supply,
         uint256 startPrice,
-        uint256 startBlock
+        uint256 startBlock,
+        uint8[4] memory mintAllowanceValues
     ) public override onlyAdmin {
         _auctions[collection] = Auction({
             artist: artist,
@@ -81,7 +82,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
             endBlock: startBlock + AUCTION_BLOCK_DURATION,
             distributed: false
         });
-        _mintstate[collection].init();
+        _mintstate[collection].init(mintAllowanceValues);
     }
 
     function getAuction(address collection)

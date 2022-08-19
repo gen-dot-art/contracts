@@ -17,7 +17,8 @@ interface IGenArtDutchAuctionHouse {
         address artist,
         uint256 supply,
         uint256 startPrice,
-        uint256 startBlock
+        uint256 startBlock,
+        uint8[4] memory mintAllowanceValues
     ) external;
 
     function getAuction(address collection)

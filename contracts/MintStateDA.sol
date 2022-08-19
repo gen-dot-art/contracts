@@ -11,11 +11,11 @@ library MintStateDA {
         mapping(uint256 => mapping(uint256 => uint256)) _mints;
     }
 
-    function init(State storage state) internal {
-        state.allowedMintStandardPhase1 = 1;
-        state.allowedMintStandardPhasesOtherAccu = 1;
-        state.allowedMintGoldPhase1 = 3;
-        state.allowedMintGoldPhasesOtherEach = 1;
+    function init(State storage state, uint8[4] memory values) internal {
+        state.allowedMintStandardPhase1 = values[0]; // 1
+        state.allowedMintStandardPhasesOtherAccu = values[1]; //1
+        state.allowedMintGoldPhase1 = values[2]; // 3
+        state.allowedMintGoldPhasesOtherEach = values[3]; //1
     }
 
     function getMints(
