@@ -41,7 +41,7 @@ contract GenArtDistributor is GenArtAccess {
         rewardDistributionDelay = _blocks;
     }
 
-    function distributeStaking() public {
+    function distributeStakingRewards() public {
         require(
             lastRewardDistributionBlock + rewardDistributionDelay <=
                 block.number,
