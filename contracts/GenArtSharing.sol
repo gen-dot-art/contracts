@@ -383,4 +383,22 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     {
         return userInfo[user].membershipIds;
     }
+
+    function getStake(address user)
+        external
+        view
+        returns (
+            uint256,
+            uint256[] memory,
+            uint256,
+            uint256
+        )
+    {
+        return (
+            userInfo[user].tokens,
+            userInfo[user].membershipIds,
+            (getUserSharesAbs(user) * PRECISION_FACTOR) / getTotalSharesAbs(),
+            _calculatePendingRewards(user)
+        );
+    }
 }
