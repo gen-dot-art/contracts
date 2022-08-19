@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import "./GenArtAccess.sol";
 import "./IGenArtDutchAuctionHouse.sol";
 import "./MintStateDA.sol";
-import "./IGenArtInterface.sol";
+import "./IGenArtInterfaceV3.sol";
 import "./IGenArtDARefund.sol";
 
 contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
@@ -187,7 +187,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         return
             _mintstate[collection].getMints(
                 membershipId,
-                IGenArtInterface(_genartInterface).isGoldToken(membershipId),
+                IGenArtInterfaceV3(_genartInterface).isGoldToken(membershipId),
                 getAuctionPhase(collection)
             );
     }
@@ -199,7 +199,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         return
             _mintstate[collection].getAvailableMints(
                 membershipId,
-                IGenArtInterface(_genartInterface).isGoldToken(membershipId),
+                IGenArtInterfaceV3(_genartInterface).isGoldToken(membershipId),
                 getAuctionPhase(collection),
                 getAuction(collection).supply,
                 IERC721Enumerable(collection).totalSupply()
@@ -273,7 +273,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
         // update mint state
         _mintstate[msg.sender].update(
             membershipId,
-            IGenArtInterface(_genartInterface).isGoldToken(membershipId),
+            IGenArtInterfaceV3(_genartInterface).isGoldToken(membershipId),
             phase,
             amount
         );
