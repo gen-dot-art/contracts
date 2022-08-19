@@ -96,8 +96,7 @@ contract("GenArtSharing", function (accounts) {
     genartSharingContract = await GenArtSharingContract.new(
       genartMembership.address,
       genartToken.address,
-      genartInterface.address,
-      user4
+      genartInterface.address
     );
 
     await genartToken.transfer(user1, new BigNumber(10_000 * 1e18), {
