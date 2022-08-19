@@ -6,7 +6,6 @@ import "./GenArtAccess.sol";
 import "./IGenArtDutchAuctionHouse.sol";
 import "./MintStateDA.sol";
 import "./IGenArtInterface.sol";
-import "./IGenArtSharing.sol";
 import "./IGenArtDARefund.sol";
 
 contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
@@ -49,7 +48,7 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
      */
     uint256[3] public _salesShares = [700, 175, 125];
 
-    // GEN.ART | GenArtSharing (GENART Staking contract) | GenArtDARefund
+    // GEN.ART | GenArtDistributor (GENART Staking contract) | GenArtDARefund
     address[3] public _payoutAddresses = [owner(), address(0), address(0)];
 
     modifier onlyCollection(address collection) {
@@ -371,10 +370,8 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
 
         _auctions[collection].distributed = true;
 
-        // send rewards to staking contact
-        IGenArtSharing(_payoutAddresses[1]).updateRewards{
-            value: stakingRewards
-        }(BLOCKS_PER_HOUR * 24 * 30);
+        // send rewards to distributor
+        payable(_payoutAddresses[1]).transfer(stakingRewards);
 
         // send funds to DA refund contract
         IGenArtDARefund(_payoutAddresses[2]).receiveFunds{value: daRefunds}(
@@ -388,7 +385,10 @@ contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {
     /**
      * @notice set payout addresses
      */
-    function setSalesShares(uint256[3] memory newShares) public onlyGenArtAdmin {
+    function setSalesShares(uint256[3] memory newShares)
+        public
+        onlyGenArtAdmin
+    {
         uint256 totalShares;
         for (uint8 i; i < newShares.length; i++) {
             totalShares += newShares[i];
