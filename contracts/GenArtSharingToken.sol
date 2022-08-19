@@ -5,7 +5,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 import {IERC20, SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "./GenArtAccess.sol";
-import "./IGenArtInterface.sol";
+import "./IGenArtInterfaceV3.sol";
 
 /**
  * @title GenArtSharingToken
@@ -95,12 +95,7 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
                 membershipIds[i]
             );
 
-            // 5 shares per gold membership. 1 share for standard memberships
-            shares += IGenArtInterface(genartInterface).isGoldToken(
-                membershipIds[i]
-            )
-                ? 5
-                : 1;
+            shares += _getMembershipShareValue(membershipIds[i]);
             // save the membership token Ids
             userInfo[msg.sender].membershipIds.push(membershipIds[i]);
         }
@@ -177,6 +172,23 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
             currentRewardPerBlock,
             rewards
         );
+    }
+
+    /**
+     * @notice Return share value of a membership based on tier
+     */
+    function _getMembershipShareValue(uint256 membershipId)
+        internal
+        view
+        returns (uint256)
+    {
+        // 5 shares per gold membership. 1 share for standard memberships
+        return
+            (
+                IGenArtInterfaceV3(genartInterface).isGoldToken(membershipId)
+                    ? 5
+                    : 1
+            ) * PRECISION_FACTOR;
     }
 
     /**
@@ -259,7 +271,6 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
         uint256 shares = userInfo[msg.sender].shares;
         uint256[] memory memberships = userInfo[msg.sender].membershipIds;
 
-
         // adjust internal shares
         userInfo[msg.sender].shares = 0;
         totalShares -= shares;
@@ -292,5 +303,25 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
         returns (uint256[] memory)
     {
         return userInfo[user].membershipIds;
+    }
+
+    function getStake(address user)
+        external
+        view
+        returns (
+            uint256[] memory,
+            uint256,
+            uint256
+        )
+    {
+        uint256 shares;
+        for (uint256 i; i < userInfo[user].membershipIds.length; i++) {
+            shares = _getMembershipShareValue(userInfo[user].membershipIds[i]);
+        }
+        return (
+            userInfo[user].membershipIds,
+            (shares * PRECISION_FACTOR) / totalShares,
+            _calculatePendingRewards(user)
+        );
     }
 }
