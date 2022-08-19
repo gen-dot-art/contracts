@@ -44,8 +44,6 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
 
     IERC20 public immutable genartToken;
 
-    address public genartDA;
-
     address public genartInterface;
 
     address public genartMembership;
@@ -71,13 +69,11 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     constructor(
         address _genartMembership,
         address _genartToken,
-        address _genartInterace,
-        address _genartDA
+        address _genartInterace
     ) {
         genartToken = IERC20(_genartToken);
         genartInterface = _genartInterace;
         genartMembership = _genartMembership;
-        genartDA = _genartDA;
     }
 
     /**
