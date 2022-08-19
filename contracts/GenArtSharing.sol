@@ -81,17 +81,6 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     }
 
     /**
-     * @dev modifier to only allow DA contract to call functions
-     */
-    modifier onlyDAContract() {
-        require(
-            genartDA == msg.sender,
-            "GenArtSharing: only DA contract allowed"
-        );
-        _;
-    }
-
-    /**
      * checks requirements for depositing a stake
      */
     function _checkDeposit(uint256[] memory membershipIds, uint256 amount)
@@ -199,7 +188,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
     function updateRewards(uint256 rewardDurationInBlocks)
         external
         payable
-        onlyDAContract
+        onlyAdmin
     {
         // Adjust the current reward per block
         if (block.number >= periodEndBlock) {
