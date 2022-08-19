@@ -182,7 +182,7 @@ contract("GenArtSharing", function (accounts) {
 
   it("Update rewards", async () => {
     await genartSharingContract.updateRewards(10, {
-      from: user4,
+      from: owner,
       value: reward,
     });
     await time.advanceBlockTo((await web3.eth.getBlockNumber()) + 10);
@@ -203,7 +203,7 @@ contract("GenArtSharing", function (accounts) {
       });
 
     // await tx2();
-    await expectError(tx, "only DA", "updateReward broken");
+    await expectError(tx, "nor admin", "updateReward broken");
     await expectError(tx2, "owner", "emergencyWithdraw broken");
   });
 
