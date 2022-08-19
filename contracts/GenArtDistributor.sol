@@ -14,6 +14,11 @@ contract GenArtDistributor is GenArtAccess {
     uint256 public lastRewardDistributionBlock = 0;
     uint256 public constant DOMINATOR = 1000;
 
+    constructor(address _treasury, address _genartSharing) {
+        treasury = _treasury;
+        genartSharing = _genartSharing;
+    }
+
     receive() external payable {
         if (treasuryShare == 0) return;
         // send to treasury wallet or contract
