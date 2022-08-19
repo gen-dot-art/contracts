@@ -371,6 +371,14 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         emit Withdraw(msg.sender, tokens);
     }
 
+    function setWeightFactors(
+        uint256 newWeightFactorTokens,
+        uint256 newWeightFactorMemberships
+    ) public onlyAdmin {
+        weightFactorTokens = newWeightFactorTokens;
+        weightFactorMemberships = newWeightFactorMemberships;
+    }
+
     function emergencyWithdraw(uint256 amount) public onlyOwner {
         payable(owner()).transfer(amount);
     }
