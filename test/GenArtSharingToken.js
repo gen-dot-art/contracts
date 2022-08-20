@@ -166,13 +166,13 @@ contract("GenArtSharingToken", function (accounts) {
         from: user1,
       });
     const tx2 = async () =>
-      genartSharingContract.emergencyWithdraw(1, {
+      genartSharingContract.collectDust(1, {
         from: user1,
       });
 
     // await tx2();
     await expectError(tx, "owner", "updateReward broken");
-    await expectError(tx2, "owner", "emergencyWithdraw broken");
+    await expectError(tx2, "owner", "collectDust broken");
   });
 
   it("harvest user1", async () => {

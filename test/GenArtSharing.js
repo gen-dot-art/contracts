@@ -197,13 +197,13 @@ contract("GenArtSharing", function (accounts) {
         value: reward,
       });
     const tx2 = async () =>
-      genartSharingContract.emergencyWithdraw(1, {
+      genartSharingContract.collectDust(1, {
         from: user1,
       });
 
     // await tx2();
     await expectError(tx, "nor admin", "updateReward broken");
-    await expectError(tx2, "owner", "emergencyWithdraw broken");
+    await expectError(tx2, "owner", "collectDust broken");
   });
 
   it("harvest user1", async () => {
@@ -270,6 +270,7 @@ contract("GenArtSharing", function (accounts) {
     const membershipsStaked = await genartSharingContract.getMembershipsOf(
       user1
     );
+
     const actualOwner = await genartSharingContract.membershipOwners(
       membershipsStaked[0].toString()
     );

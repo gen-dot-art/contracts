@@ -294,7 +294,7 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
         emit Withdraw(msg.sender, shares);
     }
 
-    function emergencyWithdraw(uint256 amount) public onlyOwner {
+    function collectDust(uint256 amount) public onlyAdmin {
         address owner_ = owner();
         payable(owner_).transfer(address(this).balance);
         genartToken.transfer(owner_, amount);
