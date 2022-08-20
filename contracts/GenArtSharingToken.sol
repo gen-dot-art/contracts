@@ -77,7 +77,7 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
         // revert if no memberships passed
         require(
             membershipIds.length > 0,
-            "GenArtSharing: minimum 1 membership required"
+            "GenArtSharing: minimum one membership required"
         );
         _deposit(membershipIds);
     }

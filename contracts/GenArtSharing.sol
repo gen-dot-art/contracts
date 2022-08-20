@@ -96,7 +96,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         if (userInfo[msg.sender].membershipIds.length == 0) {
             require(
                 membershipIds.length > 0,
-                "GenArtSharing: one GEN.ART membership required"
+                "GenArtSharing: minimum one GEN.ART membership required"
             );
         }
     }
