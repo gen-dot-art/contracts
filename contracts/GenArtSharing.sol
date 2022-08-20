@@ -132,7 +132,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         }
 
         // Transfer GENART tokens to this address
-        genartToken.safeTransferFrom(msg.sender, address(this), amount);
+        genartToken.transferFrom(msg.sender, address(this), amount);
 
         // Adjust internal token shares
         userInfo[msg.sender].tokens += amount;
@@ -143,8 +143,10 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
 
     function harvest() external nonReentrant {
         // // If pending rewards are null, revert
-        uint256 amount = _harvest();
-        require(amount > 0, "GenArtSharing: zero rewards to harvest");
+        uint256 pendingRewards = _harvest();
+        require(pendingRewards > 0, "GenArtSharing: zero rewards to harvest");
+        // Transfer reward token to sender
+        payable(msg.sender).transfer(pendingRewards);
     }
 
     /**
@@ -160,9 +162,6 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
         if (pendingRewards == 0) return 0;
         // Adjust user rewards and transfer
         userInfo[msg.sender].rewards = 0;
-
-        // Transfer reward token to sender
-        payable(msg.sender).transfer(pendingRewards);
 
         emit Harvest(msg.sender, pendingRewards);
 
@@ -334,7 +333,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
      */
     function _withdraw() internal {
         // harvest rewards
-        _harvest();
+        uint256 pendingRewards = _harvest();
 
         uint256 tokens = userInfo[msg.sender].tokens;
         uint256[] memory memberships = userInfo[msg.sender].membershipIds;
@@ -359,7 +358,8 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
                 memberships[i - 1]
             );
         }
-
+        // Transfer reward token to sender
+        payable(msg.sender).transfer(pendingRewards);
         emit Withdraw(msg.sender, tokens);
     }
 
