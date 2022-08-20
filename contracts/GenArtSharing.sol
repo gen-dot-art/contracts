@@ -89,7 +89,7 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
                 (
                     userInfo[msg.sender].membershipIds.length == 0
                         ? 4000 * PRECISION_FACTOR
-                        : PRECISION_FACTOR
+                        : 0
                 ),
             "GenArtSharing: amount too small"
         );
