@@ -192,6 +192,13 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
     }
 
     /**
+     * @notice Return rewards per share
+     */
+    function rewardPerShare() external view returns (uint256) {
+        return _rewardPerToken();
+    }
+
+    /**
      * @notice Calculate pending rewards (WETH) for a user
      * @param user address of the user
      */
