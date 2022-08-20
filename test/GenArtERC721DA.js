@@ -105,8 +105,7 @@ contract("GenArtERC721DA", function (accounts) {
     genartSharing = await GenArtSharing.new(
       genartMembership.address,
       genartToken.address,
-      genartInterface.address,
-      genartDA.address
+      genartInterface.address
     );
     genartDistributor = await GenArtDistributor.new(
       treasury,
