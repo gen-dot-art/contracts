@@ -321,13 +321,11 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
             uint256
         )
     {
-        uint256 shares;
-        for (uint256 i; i < userInfo[user].membershipIds.length; i++) {
-            shares = _getMembershipShareValue(userInfo[user].membershipIds[i]);
-        }
         return (
             userInfo[user].membershipIds,
-            totalShares == 0 ? 0 : (shares * PRECISION_FACTOR) / totalShares,
+            totalShares == 0
+                ? 0
+                : (userInfo[user].shares * PRECISION_FACTOR) / totalShares,
             _calculatePendingRewards(user)
         );
     }
