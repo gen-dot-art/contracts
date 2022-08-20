@@ -320,7 +320,7 @@ contract GenArtSharingToken is ReentrancyGuard, GenArtAccess {
         }
         return (
             userInfo[user].membershipIds,
-            (shares * PRECISION_FACTOR) / totalShares,
+            totalShares == 0 ? 0 : (shares * PRECISION_FACTOR) / totalShares,
             _calculatePendingRewards(user)
         );
     }

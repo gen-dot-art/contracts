@@ -390,10 +390,13 @@ contract GenArtSharing is ReentrancyGuard, GenArtAccess {
             uint256
         )
     {
+        uint256 totalShares = getTotalSharesAbs();
         return (
             userInfo[user].tokens,
             userInfo[user].membershipIds,
-            (getUserSharesAbs(user) * PRECISION_FACTOR) / getTotalSharesAbs(),
+            totalShares == 0
+                ? 0
+                : (getUserSharesAbs(user) * PRECISION_FACTOR) / totalShares,
             _calculatePendingRewards(user)
         );
     }
