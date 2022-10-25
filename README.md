@@ -1,42 +1,33 @@
-# Advanced Sample Hardhat Project
+# GEN.ART Smart contracts
 
-This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
+GEN.ART supports the onchain deployment of ERC721 contract implementations and PaymentSplitter to handle onchain royalty forwarding to artists.
 
-The project comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts. It also comes with a variety of other tools, preconfigured to work with the project code.
+The central entry point for deploying new collections is the `GenArtCurated` contract.
 
-Try running some of the following tasks:
+## Design
 
-```shell
-npx hardhat accounts
-npx hardhat compile
-npx hardhat clean
-npx hardhat test
-npx hardhat node
-npx hardhat help
-REPORT_GAS=true npx hardhat test
-npx hardhat coverage
-npx hardhat run scripts/deploy.js
-node scripts/deploy.js
-npx eslint '**/*.js'
-npx eslint '**/*.js' --fix
-npx prettier '**/*.{json,sol,md}' --check
-npx prettier '**/*.{json,sol,md}' --write
-npx solhint 'contracts/**/*.sol'
-npx solhint 'contracts/**/*.sol' --fix
-```
+![gen.art](design.png "GEN.ART smart contract design")
 
-# Etherscan verification
+## GenArtPaymentSplitter
 
-To try out Etherscan verification, you first need to deploy a contract to an Ethereum network that's supported by Etherscan, such as Ropsten.
+Allows admin to clone instances of `GenArtPaymentSplitter` which are assigned to artists.
+They hold payout address and shares for royalty payouts and handle the splitting. For each artist one PaymentSplitter is deployed.
 
-In this project, copy the .env.example file to a file named .env, and then edit it to fill in the details. Enter your Etherscan API key, your Ropsten node URL (eg from Alchemy), and the private key of the account which will send the deployment transaction. With a valid .env file in place, first deploy your contract:
+## GenArtCollectionFactory
 
-```shell
-hardhat run --network ropsten scripts/deploy.js
-```
+Allows admin to clone ERC721 implementations and assign a minter to it. An arbitrary amount implementations and minters can be added to the factory and chosen from on cloning.
 
-Then, copy the deployment address and paste it in to replace `DEPLOYED_CONTRACT_ADDRESS` in this command:
+- `function addErc721Implementation(uint8 index, address implementation)`
+- `function addMinter(uint8 index, address minter)`
 
-```shell
-npx hardhat verify --network ropsten DEPLOYED_CONTRACT_ADDRESS "Hello, Hardhat!"
-```
+## Minter
+
+Minters are the only signers how are allowed to mint tokens on cloned ERC721 contracts. They handle permission checking, updating the mint allocation state and can provide various mint mechanics.
+
+### GenArtFlashMinter
+
+Contract that allows members and non-members to mint tokens from cloned ERC721 contracts. If the signer doesn't own a GEN.ART membership the contract uses a vaulted membership (flash loan).
+
+## GenArtCurated
+
+Allows admin to create clone contracts via `GenArtCollectionFactory` and `GenArtPaymentSplitterFactory`.
