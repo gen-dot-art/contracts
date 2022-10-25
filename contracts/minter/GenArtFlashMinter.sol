@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
-import "./access/GenArtAccess.sol";
-import "./IGenArtMinter.sol";
-import "./IGenArtInterface.sol";
-import "./IGenArtERC721.sol";
-import "./GenArtCurated.sol";
-import "./IGenArtPaymentSplitterV4.sol";
 import "./MintAlloc.sol";
+import "../access/GenArtAccess.sol";
+import "../app/GenArtCurated.sol";
+import "../interface/IGenArtMinter.sol";
+import "../interface/IGenArtInterface.sol";
+import "../interface/IGenArtERC721.sol";
+import "../interface/IGenArtPaymentSplitterV4.sol";
 
 contract GenArtFlashMinter is GenArtAccess, IGenArtMinter {
     using MintAlloc for MintAlloc.State;

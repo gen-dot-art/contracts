@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
-import "./access/GenArtAccessUpgradable.sol";
-import "./IGenArtPaymentSplitterV4.sol";
-import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "../access/GenArtAccessUpgradable.sol";
+import "../interface/IGenArtPaymentSplitterV4.sol";
 
 contract GenArtPaymentSplitterV4 is
     Initializable,

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
-import "./access/GenArtAccess.sol";
-import "./GenArtCollectionFactory.sol";
-import "./GenArtPaymentSplitterFactory.sol";
-import "./IGenArtERC721.sol";
-import "./IGenArtMinter.sol";
+import "../access/GenArtAccess.sol";
+import "../factory/GenArtCollectionFactory.sol";
+import "../factory/GenArtPaymentSplitterFactory.sol";
+import "../interface/IGenArtERC721.sol";
+import "../interface/IGenArtMinter.sol";
 
 /**
  * @dev GEN.ART Curated

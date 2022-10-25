@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "./access/GenArtAccess.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "../access/GenArtAccess.sol";
 
 /**
  * GenArt ERC721 contract factory

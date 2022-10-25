@@ -4,9 +4,9 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/interfaces/IERC2981Upgradeable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
-import "./access/GenArtAccessUpgradable.sol";
-import "./IGenArtPaymentSplitterV4.sol";
-import "./IGenArtERC721.sol";
+import "../access/GenArtAccessUpgradable.sol";
+import "../interface/IGenArtPaymentSplitterV4.sol";
+import "../interface/IGenArtERC721.sol";
 
 /**
  * @dev ECLIPSE ERC721 V2
