@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
-import "./GenArtAccess.sol";
+import "../legacy/GenArtAccess.sol";
 import "./IGenArtDutchAuctionHouse.sol";
 import "./MintStateDA.sol";
-import "./IGenArtInterfaceV3.sol";
+import "../legacy/IGenArtInterfaceV3.sol";
 import "./IGenArtDARefund.sol";
 
 contract GenArtDutchAuctionHouse is GenArtAccess, IGenArtDutchAuctionHouse {

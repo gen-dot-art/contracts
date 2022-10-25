@@ -5,9 +5,9 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
-import "./GenArtAccess.sol";
-import "./IGenArtMembership.sol";
-import "./IGenArtPaymentSplitterV2.sol";
+import "../legacy/GenArtAccess.sol";
+import "../legacy/IGenArtMembership.sol";
+import "../legacy/IGenArtPaymentSplitterV2.sol";
 import "./IGenArtInterface.sol";
 import "./GenArtDutchAuctionHouse.sol";
 

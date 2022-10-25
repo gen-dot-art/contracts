@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
-import "./GenArtAccess.sol";
+import "../legacy/GenArtAccess.sol";
 import "./GenArtDutchAuctionHouse.sol";
 import "./IGenArtSharing.sol";
 
