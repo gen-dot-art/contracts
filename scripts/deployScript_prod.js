@@ -33,15 +33,15 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const htmlFile = "hyperscopic_minified.html";
-  const NAME = "Hyperscopic by Dominikus";
-  const SYM = "HYP";
+  const htmlFile = "3000_script_minified.html";
+  const NAME = "≈ 3000 by Santiago";
+  const SYM = "3000";
   const URI = "https://api.gen.art/public/attributes/";
-  const COLLECTION_ID = "30001";
+  const COLLECTION_ID = "30002";
   const STANDARD_SUPPLY = 1;
-  const GOLD_SUPPLY = 1;
-  const PRICE = 0.15;
-  const MINT_SUPPLY = 400;
+  const GOLD_SUPPLY = 2;
+  const PRICE = 0.25;
+  const MINT_SUPPLY = 100;
   const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
   const GENART_INTERFACE = "0xf09473B9e7D00F505f467B344f3907a948E38Da0";
   const SCRIPT = fs.readFileSync(`./tmp/${htmlFile}`, { encoding: "utf-8" });
