@@ -1,8 +1,8 @@
 # GEN.ART Smart contracts
 
-GEN.ART supports the onchain deployment of ERC721 contract implementations and PaymentSplitter to handle onchain royalty forwarding to artists.
+GEN.ART contracts support the onchain deployment of `ERC721` contract implementations to provide onchain generative art.
 
-The central entry point for deploying new collections is the `GenArtCurated` contract.
+The central entry point for deploying contracts is the `GenArtCurated` contract.
 
 ## Design
 
@@ -35,3 +35,6 @@ Extends `GenArtMinter`. Allows members and non-members to mint tokens by a fixed
 ## GenArtCurated
 
 Allows admin to create clone contracts via `GenArtCollectionFactory` and `GenArtPaymentSplitterFactory`.
+
+- `createArtist(address artist, address[] memory payeesMint, address[] memory payeesRoyalties, uint256[] memory sharesMint, uint256[] memory sharesRoyalties `
+- `createCollection(address artist, string memory name, string memory symbol, string memory script, uint256 maxSupply, uint8 erc721Index, uint8 minterIndex)`
