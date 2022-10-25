@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const BigNumber = require("bignumber.js");
 BigNumber.config({ EXPONENTIAL_AT: 9999 });
-const { expectError } = require("../helpers");
+const { expectError } = require("../../helpers");
 const { expectEvent } = require("@openzeppelin/test-helpers");
 const URI_1 = "https://localhost:8080/premium/";
 const URI_2 = "https://localhost:8080/gold/";

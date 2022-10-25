@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const BigNumber = require("bignumber.js");
 BigNumber.config({ EXPONENTIAL_AT: 9999 });
-const { expectError } = require("../helpers");
+const { expectError } = require("../../helpers");
 const { expectEvent } = require("@openzeppelin/test-helpers");
 const SCALE = new BigNumber(10).pow(18);
 const MINT_PRICE = new BigNumber(1).times(SCALE);
