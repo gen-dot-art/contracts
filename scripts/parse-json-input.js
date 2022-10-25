@@ -1,5 +1,5 @@
 const fs = require("fs");
-const build = require("../artifacts/build-info/4b6ed7adae5c6103c79db9bd067b78e0.json");
+const build = require("../artifacts/build-info/735b18be4425de69da65a44265ddc760.json");
 
 fs.writeFileSync(
   "./tmp/contract-json-input.json",
