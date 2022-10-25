@@ -22,11 +22,15 @@ Allows admin to clone ERC721 implementations and assign a minter to it. An arbit
 
 ## Minter
 
-Minters are the only signers how are allowed to mint tokens on cloned ERC721 contracts. They handle permission checking, updating the mint allocation state and can provide various mint mechanics.
+Minters are the only signers how are allowed to mint tokens on cloned ERC721 contracts. They handle permission checking, updating the mint allocation state and can provide various mint mechanics. A collection may be assigned to multiple minters.
+
+### GenArtMinter
+
+Contract that allows members to mint tokens by a fixed price from cloned ERC721 contracts.
 
 ### GenArtFlashMinter
 
-Contract that allows members and non-members to mint tokens from cloned ERC721 contracts. If the signer doesn't own a GEN.ART membership the contract uses a vaulted membership (flash loan).
+Extends `GenArtMinter`. Allows members and non-members to mint tokens by a fixed price from cloned ERC721 contracts. If the minter doesn't own a GEN.ART membership the contract uses a vaulted membership (flash loan).
 
 ## GenArtCurated
 
