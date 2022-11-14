@@ -163,4 +163,15 @@ contract GenArtCurated is GenArtAccess {
     function setPaymentSplitterFactory(address factory) public onlyAdmin {
         paymentSplitterFactory = factory;
     }
+    function updateScript(address collection, string memory script) external {
+        address sender = _msgSender();
+        require(
+            collections[collection].artist == sender ||
+                admins[sender] ||
+                owner() == sender,
+            "not allowed"
+        );
+        collections[collection].script = script;
+        emit ScriptUpdated(collection, script);
+    }
 }
