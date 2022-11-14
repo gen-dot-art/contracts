@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "../access/GenArtAccess.sol";
 
 /**
- * GenArt ERC721 contract factory
+ * GEN.ART {GenArtPaymentSplitter} contract factory
  */
 
 contract GenArtPaymentSplitterFactory is GenArtAccess {
@@ -50,6 +50,9 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
             );
     }
 
+    /**
+     * @notice Cone a {PaymentSplitter} implementation contract
+     */
     function clone(
         address owner,
         address artist,

@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "../access/GenArtAccess.sol";
 
 /**
- * GenArt ERC721 contract factory
+ * GEN.ART ERC721 contract factory
  */
 
 struct CollectionParams {
@@ -42,6 +42,9 @@ contract GenArtCollectionFactory is GenArtAccess {
         uri = uri_;
     }
 
+    /**
+     * @notice Get next collection id
+     */
     function _getNextCollectionId(bool isScript) internal returns (uint256) {
         uint256 id;
         if (isScript) {
@@ -54,6 +57,10 @@ contract GenArtCollectionFactory is GenArtAccess {
         return id;
     }
 
+    /**
+     * @notice Create initializer for clone
+     * Note The method signature is created on chain to prevent malicious initialization args
+     */
     function _createInitializer(
         uint256 id,
         address artist,
@@ -78,6 +85,9 @@ contract GenArtCollectionFactory is GenArtAccess {
             );
     }
 
+    /**
+     * @notice Cone an implementation contract
+     */
     function cloneCollectionContract(CollectionParams memory params)
         external
         onlyAdmin
@@ -113,6 +123,9 @@ contract GenArtCollectionFactory is GenArtAccess {
         return (instance, id);
     }
 
+    /**
+     * @notice Add an ERC721 implementation contract and map by index
+     */
     function addErc721Implementation(uint8 index, address implementation)
         external
         onlyAdmin
@@ -120,10 +133,16 @@ contract GenArtCollectionFactory is GenArtAccess {
         erc721Implementations[index] = implementation;
     }
 
+    /**
+     * @notice Add a minter contract and map by index
+     */
     function addMinter(uint8 index, address minter) external onlyAdmin {
         minters[index] = minter;
     }
 
+    /**
+     * @notice Sets the base tokenURI for collections
+     */
     function setUri(string memory uri_) external onlyAdmin {
         uri = uri_;
     }

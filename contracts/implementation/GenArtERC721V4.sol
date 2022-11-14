@@ -9,14 +9,11 @@ import "../interface/IGenArtPaymentSplitterV4.sol";
 import "../interface/IGenArtERC721.sol";
 
 /**
- * @dev ECLIPSE ERC721 V2
+ * @dev GEN.ART ERC721 V4
  * Implements the extentions {IERC721Enumerable} and {IERC2981}.
  * Inherits access control from {GenArtAccess}.
- * Sends all ETH to a {PaymentSplitter} contract.
- * Restricts minting to ECLIPSE Membership holders.
- * IMPORTANT: This implementation requires the royalties to be send to the contracts address
- * in order to split the funds between payees automatically.
  */
+
 contract GenArtERC721V4 is
     ERC721EnumerableUpgradeable,
     GenArtAccessUpgradable,
@@ -53,6 +50,12 @@ contract GenArtERC721V4 is
         _disableInitializers();
     }
 
+    /**
+     * @notice Initialize contract
+     * Note This method has to be called right after the creation of the clone.
+     * If not, the contract can be taken over by some attacker.
+     */
+
     function initialize(
         string memory name,
         string memory symbol,
@@ -73,25 +76,25 @@ contract GenArtERC721V4 is
         _royaltyReceiver = paymentSplitter;
     }
 
+    /**
+     * @notice Helper method to check allowed minters
+     */
     function _checkMint() internal view {
         require(_minters[_msgSender()], "only minter allowed");
     }
 
+    /**
+     * @notice Mint a token
+     * @param to address to mint to
+     * @param membershipId address to mint to
+     */
     function mint(address to, uint256 membershipId) external override {
         _checkMint();
         _mintOne(to, membershipId);
     }
 
     /**
-     * @dev Mints `tokenId` and transfers it to `to`.
-     *
-     * Requirements:
-     *
-     * - `tokenId` must not exist.
-     * - `to` cannot be the zero address.
-     *
-     * Emits a {Transfer} event.
-     * Emits a {Mint} event.
+     * @notice Creates the token and its hash
      */
     function _mintOne(address to, uint256 membershipId) internal virtual {
         uint256 tokenId = _info.id * 100_000 + totalSupply() + 1;
