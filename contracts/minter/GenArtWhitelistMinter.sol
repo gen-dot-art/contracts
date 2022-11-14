@@ -10,42 +10,34 @@ import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtPaymentSplitterV4.sol";
 
 /**
- * @dev GEN.ART Flash Minter
-  * Admin for collections deployed on {GenArtCurated}
+ * @dev GEN.ART Whitelist Minter
+ * Admin for collections deployed on {GenArtCurated}
  */
 
-contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
+contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     struct Pricing {
         uint256 startTime;
         uint256 price;
-        uint256[] pooledMemberships;
-        address mintAlloc;
+        mapping(address => bool) whitelist;
+        mapping(address => bool) whitelistMinted;
     }
 
     address public genArtCurated;
     address public genartInterface;
     address public payoutAddress;
-    address public membershipLendingPool;
-    uint256 public lendingFeePercentage = 0;
+    uint256 public whitelistFee = 0;
 
     mapping(address => Pricing) public collections;
 
-    event PricingSet(
-        address collection,
-        uint256 startTime,
-        uint256 price,
-        address mintAlloc
-    );
+    event PricingSet(address collection, uint256 startTime, uint256 price);
 
     constructor(
         address genartInterface_,
         address genartCurated_,
-        address membershipLendingPool_,
         address payoutAddress_
     ) GenArtAccess() {
         genartInterface = genartInterface_;
         genArtCurated = genartCurated_;
-        membershipLendingPool = membershipLendingPool_;
         payoutAddress = payoutAddress_;
     }
 
@@ -62,13 +54,13 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
      * @param collection contract address of the collection
      * @param startTime start time for minting
      * @param price price per token
-     * @param mintAllocContract contract address of {GenArtMintAllocator}
+     * @param whitelist list of whitelisted addresses
      */
     function setPricing(
         address collection,
         uint256 startTime,
         uint256 price,
-        address mintAllocContract
+        address[] memory whitelist
     ) external onlyAdmin {
         require(
             collections[collection].startTime < block.timestamp,
@@ -77,12 +69,10 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
         require(startTime > block.timestamp, "startTime too early");
         collections[collection].startTime = startTime;
         collections[collection].price = price;
-        collections[collection].mintAlloc = mintAllocContract;
-        collections[collection].pooledMemberships = IGenArtInterface(
-            genartInterface
-        ).getMembershipsOf(membershipLendingPool);
-
-        emit PricingSet(collection, startTime, price, mintAllocContract);
+        for (uint256 i; i < whitelist.length; i++) {
+            collections[collection].whitelist[whitelist[i]] = true;
+        }
+        emit PricingSet(collection, startTime, price);
     }
 
     /**
@@ -95,50 +85,29 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
         override
         returns (uint256)
     {
-        return
-            (collections[collection].price * (100 + lendingFeePercentage)) /
-            100;
+        return (collections[collection].price * (100 + whitelistFee)) / 100;
     }
 
     /**
-     * @notice Helper function to check for mint price and start date
+     * @notice Helper function to check for mint price, start date
+     * and avaialble mints for sender
      */
     function _checkMint(address collection) internal view {
         require(msg.value >= getPrice(collection), "wrong amount sent");
 
-        require(
-            collections[collection].pooledMemberships.length > 0,
-            "no memberships available"
-        );
+        bool availableMint = collections[collection].whitelist[msg.sender] &&
+            !collections[collection].whitelistMinted[msg.sender];
+
+        require(availableMint, "no mints available");
 
         require(
             collections[collection].startTime != 0,
-            "falsh loan mint not started yet"
+            "whitelist mint not started yet"
         );
         require(
             collections[collection].startTime <= block.timestamp,
             "mint not started yet"
         );
-    }
-
-    /**
-     * @notice Helper function to check for available mints for sender
-     */
-    function _checkAvailableMints(address collection, uint256 membershipId)
-        internal
-        view
-    {
-        require(
-            IGenArtInterface(genartInterface).ownerOfMembership(membershipId) ==
-                membershipLendingPool,
-            "not a vaulted membership"
-        );
-
-        uint256 availableMints = IGenArtMintAllocator(
-            collections[collection].mintAlloc
-        ).getAvailableMintsForMembership(collection, membershipId);
-
-        require(availableMints >= 1, "no mints available");
     }
 
     /**
@@ -148,25 +117,16 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
      */
     function mintOne(address collection, uint256) external payable override {
         _checkMint(collection);
-        uint256 membershipId = collections[collection].pooledMemberships[
-            collections[collection].pooledMemberships.length - 1
-        ];
-        collections[collection].pooledMemberships.pop();
-        _checkAvailableMints(collection, membershipId);
-        _mint(collection, membershipId);
+        _mint(collection);
         _splitPayment(collection);
     }
 
     /**
      * @notice Internal function to mint tokens on {IGenArtERC721} contracts
      */
-    function _mint(address collection, uint256 membershipId) internal {
-        IGenArtMintAllocator(collections[collection].mintAlloc).update(
-            collection,
-            membershipId,
-            1
-        );
-        IGenArtERC721(collection).mint(msg.sender, membershipId);
+    function _mint(address collection) internal {
+        collections[collection].whitelistMinted[msg.sender] = true;
+        IGenArtERC721(collection).mint(msg.sender, 0);
     }
 
     /**
@@ -183,28 +143,15 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     function _splitPayment(address collection) internal {
         address paymentSplitter = GenArtCurated(genArtCurated)
             .getPaymentSplitterForCollection(collection);
-        uint256 amount = (msg.value / (100 + lendingFeePercentage)) * 100;
+        uint256 amount = (msg.value / (100 + whitelistFee)) * 100;
         IGenArtPaymentSplitterV4(paymentSplitter).splitPayment{value: amount}();
     }
 
     /**
-     * @notice Set the flash lending fee
+     * @notice Set the whitelist fee
      */
-    function setMembershipLendingFee(uint256 lendingFeePercentage_)
-        external
-        onlyAdmin
-    {
-        lendingFeePercentage = lendingFeePercentage_;
-    }
-
-    /**
-     * @notice Set membership pool address
-     */
-    function setMembershipLendingPool(address membershipLendingPool_)
-        external
-        onlyAdmin
-    {
-        membershipLendingPool = membershipLendingPool_;
+    function setWhitelistFee(uint256 whitelistFee_) external onlyAdmin {
+        whitelistFee = whitelistFee_;
     }
 
     /**
@@ -239,39 +186,35 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
         override
         returns (uint256)
     {
-        return
-            IGenArtMintAllocator(collections[collection].mintAlloc)
-                .getAvailableMintsForAccount(collection, account);
+        bool availableMint = collections[collection].whitelist[account] &&
+            !collections[collection].whitelistMinted[account];
+        return availableMint ? 1 : 0;
     }
 
     /**
-     * @notice Get available mints for a GEN.ART membership
-     * @param collection contract address of the collection
-     * @param membershipId owned GEN.ART membershipId
+     * @notice Not need
+     * Note DO NOT USE
      */
-    function getAvailableMintsForMembership(
-        address collection,
-        uint256 membershipId
-    ) external view override returns (uint256) {
-        return
-            IGenArtMintAllocator(collections[collection].mintAlloc)
-                .getAvailableMintsForMembership(collection, membershipId);
-    }
-
-    /**
-     * @notice Get amount of minted tokens for a GEN.ART membership
-     * @param collection contract address of the collection
-     * @param membershipId owned GEN.ART membershipId
-     */
-    function getMembershipMints(address collection, uint256 membershipId)
+    function getAvailableMintsForMembership(address, uint256)
         external
         view
         override
         returns (uint256)
     {
-        return
-            IGenArtMintAllocator(collections[collection].mintAlloc)
-                .getMembershipMints(collection, membershipId);
+        return 0;
+    }
+
+    /**
+     * @notice Not need
+     * Note DO NOT USE
+     */
+    function getMembershipMints(address, uint256)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return 0;
     }
 
     /**
@@ -279,5 +222,12 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
      */
     function withdraw() external onlyAdmin {
         payable(payoutAddress).transfer(address(this).balance);
+    }
+
+    function addWhitelist(address collection, address account)
+        external
+        onlyAdmin
+    {
+        collections[collection].whitelist[account] = true;
     }
 }

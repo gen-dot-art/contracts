@@ -1,44 +1,48 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
-import "./MintAlloc.sol";
 import "../access/GenArtAccess.sol";
 import "../app/GenArtCurated.sol";
 import "../interface/IGenArtMinter.sol";
+import "../interface/IGenArtMintAllocator.sol";
 import "../interface/IGenArtInterface.sol";
 import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtPaymentSplitterV4.sol";
 
-contract GenArtMinter is GenArtAccess, IGenArtMinter {
-    using MintAlloc for MintAlloc.State;
+/**
+ * @dev GEN.ART Default Minter
+ * Admin for collections deployed on {GenArtCurated}
+ */
 
+contract GenArtMinter is GenArtAccess, IGenArtMinter {
     struct Pricing {
         address artist;
         uint256 startTime;
         uint256 price;
-        uint256[] pooledMemberships;
+        address mintAlloc;
     }
 
     address public genArtCurated;
     address public genartInterface;
-    address public membershipLendingPool;
-    uint256 public lendingFeePercentage = 20;
-
-    mapping(address => MintAlloc.State) public mintstates;
     mapping(address => Pricing) public collections;
 
-    event PricingSet(address collection, uint256 startTime, uint256 price);
+    event PricingSet(
+        address collection,
+        uint256 startTime,
+        uint256 price,
+        address mintAlloc
+    );
 
-    constructor(
-        address genartInterface_,
-        address genartCurated_,
-        address membershipLendingPool_
-    ) GenArtAccess() {
+    constructor(address genartInterface_, address genartCurated_)
+        GenArtAccess()
+    {
         genartInterface = genartInterface_;
         genArtCurated = genartCurated_;
-        membershipLendingPool = membershipLendingPool_;
     }
 
+    /**
+     * @notice Add pricing for collection and set artist
+     */
     function addPricing(address collection, address artist)
         external
         override
@@ -48,15 +52,23 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
             collections[collection].artist == address(0),
             "pricing already exists for collection"
         );
-        uint256[] memory pooledMemberships = IGenArtInterface(genartInterface)
-            .getMembershipsOf(membershipLendingPool);
-        collections[collection] = Pricing(artist, 0, 0, pooledMemberships);
+
+        collections[collection] = Pricing(artist, 0, 0, address(0));
     }
 
+    /**
+     * @notice Set pricing for collection
+     * @param collection contract address of the collection
+     * @param startTime start time for minting
+     * @param price price per token
+     * @param mintAllocContract contract address of {GenArtMintAllocator}
+     * @param mintAlloc mint allocation initalization args
+     */
     function setPricing(
         address collection,
         uint256 startTime,
         uint256 price,
+        address mintAllocContract,
         uint8[3] memory mintAlloc
     ) external {
         require(
@@ -73,10 +85,15 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         }
         collections[collection].startTime = startTime;
         collections[collection].price = price;
-        mintstates[collection].init(mintAlloc);
-        emit PricingSet(collection, startTime, price);
+        collections[collection].mintAlloc = mintAllocContract;
+        IGenArtMintAllocator(mintAllocContract).init(collection, mintAlloc);
+        emit PricingSet(collection, startTime, price, mintAllocContract);
     }
 
+    /**
+     * @notice Get price for collection
+     * @param collection contract address of the collection
+     */
     function getPrice(address collection)
         public
         view
@@ -86,6 +103,9 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         return collections[collection].price;
     }
 
+    /**
+     * @notice Helper function to check for mint price and start date
+     */
     function _checkMint(address collection, uint256 amount) internal view {
         require(
             msg.value >= getPrice(collection) * amount,
@@ -98,69 +118,62 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         );
     }
 
+    /**
+     * @notice Helper function to check for available mints for sender
+     */
     function _checkAvailableMints(
         address collection,
         uint256 membershipId,
-        uint256 amount,
-        bool isFlashloan
+        uint256 amount
     ) internal view {
-        (, , , , , uint256 maxSupply, uint256 totalSupply) = IGenArtERC721(
-            collection
-        ).getInfo();
-
-        uint256 availableMints = mintstates[collection].getAvailableMints(
-            MintParams(
-                membershipId,
-                IGenArtInterface(genartInterface).isGoldToken(membershipId),
-                maxSupply,
-                totalSupply
-            )
-        );
-        if (!isFlashloan) {
-            require(
-                IGenArtInterface(genartInterface).ownerOfMembership(
-                    membershipId
-                ) == msg.sender,
-                "sender must be owner of membership"
-            );
-        } else {
-            require(
-                IGenArtInterface(genartInterface).ownerOfMembership(
-                    membershipId
-                ) == membershipLendingPool,
-                "sender must be owner of membership"
-            );
-        }
-
+        uint256 availableMints = IGenArtMintAllocator(
+            collections[collection].mintAlloc
+        ).getAvailableMintsForMembership(collection, membershipId);
         require(availableMints >= amount, "no mints available");
+        require(
+            IGenArtInterface(genartInterface).ownerOfMembership(membershipId) ==
+                msg.sender,
+            "sender must be owner of membership"
+        );
     }
 
+    /**
+     * @notice Mint a token
+     * @param collection contract address of the collection
+     * @param membershipId owned GEN.ART membershipId
+     */
     function mintOne(address collection, uint256 membershipId)
         external
         payable
         override
     {
         _checkMint(collection, 1);
-        _mint(collection, membershipId, false);
+        _checkAvailableMints(collection, membershipId, 1);
+        _mint(collection, membershipId, msg.sender);
+        _splitPayment(collection);
     }
 
+    /**
+     * @notice Internal function to mint tokens on {IGenArtERC721} contracts
+     */
     function _mint(
         address collection,
         uint256 membershipId,
-        bool isFlashLoan
+        address to
     ) internal {
-        _checkAvailableMints(collection, membershipId, 1, isFlashLoan);
-        mintstates[collection].update(
-            MintUpdateParams(
-                membershipId,
-                IGenArtInterface(genartInterface).isGoldToken(membershipId),
-                1
-            )
+        IGenArtMintAllocator(collections[collection].mintAlloc).update(
+            collection,
+            membershipId,
+            1
         );
-        IGenArtERC721(collection).mint(msg.sender, membershipId);
-        _splitPayment(collection, isFlashLoan);
+        IGenArtERC721(collection).mint(to, membershipId);
     }
 
+    /**
+     * @notice Mint a token
+     * @param collection contract address of the collection
+     * @param amount amount of tokens to mint
+     */
     function mint(address collection, uint256 amount)
         external
         payable
@@ -169,67 +182,66 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         // get all available mints for sender
         _checkMint(collection, amount);
 
-        (, , , , , uint256 maxSupply, uint256 totalSupply) = IGenArtERC721(
-            collection
-        ).getInfo();
         // get all memberships for sender
         address minter = _msgSender();
         uint256[] memory memberships = IGenArtInterface(genartInterface)
             .getMembershipsOf(minter);
         uint256 minted;
         uint256 i;
-        MintAlloc.State storage state = mintstates[collection];
+        IGenArtMintAllocator mintAlloc = IGenArtMintAllocator(
+            collections[collection].mintAlloc
+        );
         // loop until the desired amount of tokens was minted
         while (minted < amount && i < memberships.length) {
             // get available mints for membership
             uint256 membershipId = memberships[i];
-            bool isGold = IGenArtInterface(genartInterface).isGoldToken(
+            uint256 mints = mintAlloc.getAvailableMintsForMembership(
+                collection,
                 membershipId
-            );
-            uint256 mints = state.getAvailableMints(
-                MintParams(membershipId, isGold, maxSupply, totalSupply)
             );
             // mint tokens with membership and stop if desired amount reached
             uint256 j;
             for (j = 0; j < mints && minted < amount; j++) {
-                IGenArtERC721(collection).mint(minter, membershipId);
+                _mint(collection, membershipId, minter);
                 minted++;
             }
             // update mint state once membership minted tokens
-            state.update(MintUpdateParams(membershipId, isGold, j));
+            mintAlloc.update(collection, membershipId, j);
             i++;
         }
         require(minted > 0, "no mints available");
-        _splitPayment(collection, false);
+        _splitPayment(collection);
     }
 
-    function _splitPayment(address collection, bool isFlashLoan) internal {
+    /**
+     * @notice Internal function to forward funds to a {GenArtPaymentSplitter}
+     */
+    function _splitPayment(address collection) internal {
         address paymentSplitter = GenArtCurated(genArtCurated)
             .getPaymentSplitterForCollection(collection);
-        uint256 amount;
-        if (!isFlashLoan) {
-            amount = msg.value;
-        } else {
-            amount = (msg.value / (100 + lendingFeePercentage)) * 100;
-            payable(membershipLendingPool).transfer(msg.value - amount);
-        }
-        IGenArtPaymentSplitterV4(paymentSplitter).splitPayment{value: amount}();
+        IGenArtPaymentSplitterV4(paymentSplitter).splitPayment{
+            value: msg.value
+        }();
     }
 
+    /**
+     * @notice Set the {GenArtInferface} contract address
+     */
     function setInterface(address genartInterface_) external onlyAdmin {
         genartInterface = genartInterface_;
     }
 
-    function setMembershipLendingFee(uint256 fee) external onlyAdmin {
-        lendingFeePercentage = fee;
-    }
-
-    function setMembershipLendingPool(address poolAddress) external onlyAdmin {
-        membershipLendingPool = poolAddress;
+    /**
+     * @notice Set the {GenArtCurated} contract address
+     */
+    function setCurated(address genartCurated_) external onlyAdmin {
+        genArtCurated = genartCurated_;
     }
 
     /**
-     *@dev Get available mints for an account
+     * @notice Get all available mints for account
+     * @param collection contract address of the collection
+     * @param account address of account
      */
     function getAvailableMintsForAccount(address collection, address account)
         external
@@ -237,50 +249,29 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         override
         returns (uint256)
     {
-        uint256[] memory memberships = IGenArtInterface(genartInterface)
-            .getMembershipsOf(account);
-        (, , , , , uint256 maxSupply, uint256 totalSupply) = IGenArtERC721(
-            collection
-        ).getInfo();
-        uint256 availableMints;
-        for (uint256 i; i < memberships.length; i++) {
-            availableMints += mintstates[collection].getAvailableMints(
-                MintParams(
-                    memberships[i],
-                    IGenArtInterface(genartInterface).isGoldToken(
-                        memberships[i]
-                    ),
-                    maxSupply,
-                    totalSupply
-                )
-            );
-        }
-        return availableMints;
+        return
+            IGenArtMintAllocator(collections[collection].mintAlloc)
+                .getAvailableMintsForAccount(collection, account);
     }
 
     /**
-     *@dev Get available mints for a membershipId
+     * @notice Get available mints for a GEN.ART membership
+     * @param collection contract address of the collection
+     * @param membershipId owned GEN.ART membershipId
      */
     function getAvailableMintsForMembership(
         address collection,
         uint256 membershipId
     ) external view override returns (uint256) {
-        (, , , , , uint256 maxSupply, uint256 totalSupply) = IGenArtERC721(
-            collection
-        ).getInfo();
         return
-            mintstates[collection].getAvailableMints(
-                MintParams(
-                    membershipId,
-                    IGenArtInterface(genartInterface).isGoldToken(membershipId),
-                    maxSupply,
-                    totalSupply
-                )
-            );
+            IGenArtMintAllocator(collections[collection].mintAlloc)
+                .getAvailableMintsForMembership(collection, membershipId);
     }
 
     /**
-     *@dev Get amount of mints for a membershipId
+     * @notice Get amount of minted tokens for a GEN.ART membership
+     * @param collection contract address of the collection
+     * @param membershipId owned GEN.ART membershipId
      */
     function getMembershipMints(address collection, uint256 membershipId)
         external
@@ -288,24 +279,8 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         override
         returns (uint256)
     {
-        return mintstates[collection].getMints(membershipId);
-    }
-
-    function getMintAlloc(address collection)
-        external
-        view
-        returns (
-            uint8,
-            uint8,
-            uint8,
-            uint256
-        )
-    {
-        return (
-            mintstates[collection].reservedGoldSupply,
-            mintstates[collection].allowedMintGold,
-            mintstates[collection].allowedMintStandard,
-            mintstates[collection]._goldMints
-        );
+        return
+            IGenArtMintAllocator(collections[collection].mintAlloc)
+                .getMembershipMints(collection, membershipId);
     }
 }
