@@ -194,7 +194,7 @@ contract GenArtERC721V4 is
 
     /**
      *@dev Reserved mints can only be called by admins
-     * Only one possible mint.
+     * Only one possible mint. Token will be sent to sender
      */
     function mintReserved() public onlyAdmin {
         require(!_reservedMinted, "GenArtERC721: reserved already minted");

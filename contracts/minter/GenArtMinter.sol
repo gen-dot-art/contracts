@@ -71,8 +71,9 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         address mintAllocContract,
         uint8[3] memory mintAlloc
     ) external {
+        address sender = _msgSender();
         require(
-            collections[collection].artist == msg.sender || admins[msg.sender],
+            collections[collection].artist == sender || admins[sender],
             "only artist or admin allowed"
         );
         require(
@@ -81,7 +82,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         );
         require(startTime > block.timestamp, "startTime too early");
         if (collections[collection].price > 0) {
-            require(admins[msg.sender], "only admin allowed");
+            require(admins[sender], "only admin allowed");
         }
         collections[collection].startTime = startTime;
         collections[collection].price = price;
@@ -149,24 +150,13 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     {
         _checkMint(collection, 1);
         _checkAvailableMints(collection, membershipId, 1);
-        _mint(collection, membershipId, msg.sender);
-        _splitPayment(collection);
-    }
-
-    /**
-     * @notice Internal function to mint tokens on {IGenArtERC721} contracts
-     */
-    function _mint(
-        address collection,
-        uint256 membershipId,
-        address to
-    ) internal {
         IGenArtMintAllocator(collections[collection].mintAlloc).update(
             collection,
             membershipId,
             1
         );
-        IGenArtERC721(collection).mint(to, membershipId);
+        IGenArtERC721(collection).mint(msg.sender, membershipId);
+        _splitPayment(collection);
     }
 
     /**
@@ -202,7 +192,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
             // mint tokens with membership and stop if desired amount reached
             uint256 j;
             for (j = 0; j < mints && minted < amount; j++) {
-                _mint(collection, membershipId, minter);
+                IGenArtERC721(collection).mint(minter, membershipId);
                 minted++;
             }
             // update mint state once membership minted tokens
@@ -282,5 +272,17 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
         return
             IGenArtMintAllocator(collections[collection].mintAlloc)
                 .getMembershipMints(collection, membershipId);
+    }
+
+    /**
+     * @notice Get collection pricing object
+     * @param collection contract address of the collection
+     */
+    function getCollectionPricing(address collection)
+        external
+        view
+        returns (Pricing memory)
+    {
+        return collections[collection];
     }
 }

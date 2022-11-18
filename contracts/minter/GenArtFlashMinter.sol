@@ -11,7 +11,7 @@ import "../interface/IGenArtPaymentSplitterV4.sol";
 
 /**
  * @dev GEN.ART Flash Minter
-  * Admin for collections deployed on {GenArtCurated}
+ * Admin for collections deployed on {GenArtCurated}
  */
 
 contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
@@ -96,8 +96,8 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
         returns (uint256)
     {
         return
-            (collections[collection].price * (100 + lendingFeePercentage)) /
-            100;
+            (collections[collection].price * (1000 + lendingFeePercentage)) /
+            1000;
     }
 
     /**
@@ -183,7 +183,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     function _splitPayment(address collection) internal {
         address paymentSplitter = GenArtCurated(genArtCurated)
             .getPaymentSplitterForCollection(collection);
-        uint256 amount = (msg.value / (100 + lendingFeePercentage)) * 100;
+        uint256 amount = (msg.value / (1000 + lendingFeePercentage)) * 1000;
         IGenArtPaymentSplitterV4(paymentSplitter).splitPayment{value: amount}();
     }
 
@@ -272,6 +272,18 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
         return
             IGenArtMintAllocator(collections[collection].mintAlloc)
                 .getMembershipMints(collection, membershipId);
+    }
+
+    /**
+     * @notice Get collection pricing object
+     * @param collection contract address of the collection
+     */
+    function getCollectionPricing(address collection)
+        external
+        view
+        returns (Pricing memory)
+    {
+        return collections[collection];
     }
 
     /**

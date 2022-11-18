@@ -85,7 +85,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
         override
         returns (uint256)
     {
-        return (collections[collection].price * (100 + whitelistFee)) / 100;
+        return (collections[collection].price * (1000 + whitelistFee)) / 1000;
     }
 
     /**
@@ -143,7 +143,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     function _splitPayment(address collection) internal {
         address paymentSplitter = GenArtCurated(genArtCurated)
             .getPaymentSplitterForCollection(collection);
-        uint256 amount = (msg.value / (100 + whitelistFee)) * 100;
+        uint256 amount = (msg.value / (1000 + whitelistFee)) * 1000;
         IGenArtPaymentSplitterV4(paymentSplitter).splitPayment{value: amount}();
     }
 
@@ -218,10 +218,18 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Widthdraw contract balance
+     * @notice Get collection pricing object
+     * @param collection contract address of the collection
      */
-    function withdraw() external onlyAdmin {
-        payable(payoutAddress).transfer(address(this).balance);
+    function getCollectionPricing(address collection)
+        external
+        view
+        returns (uint256 startTime, uint256 price)
+    {
+        return (
+            collections[collection].startTime,
+            collections[collection].price
+        );
     }
 
     function addWhitelist(address collection, address account)
@@ -229,5 +237,12 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
         onlyAdmin
     {
         collections[collection].whitelist[account] = true;
+    }
+
+    /**
+     * @notice Widthdraw contract balance
+     */
+    function withdraw() external onlyAdmin {
+        payable(payoutAddress).transfer(address(this).balance);
     }
 }

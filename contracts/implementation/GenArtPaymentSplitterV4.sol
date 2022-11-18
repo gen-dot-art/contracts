@@ -36,14 +36,19 @@ contract GenArtPaymentSplitterV4 is
         __GenArtAccessUpgradable_init(owner, owner);
         _payment = Payment(payeesMint, sharesMint);
         _paymentRoyalties = Payment(payeesRoyalties, sharesRoyalties);
+        require(
+            getTotalShares(0) == 1000 && getTotalShares(1) == 1000,
+            "sum of shares must be 1000"
+        );
     }
 
-    function splitPayment() public payable override {
-        require(msg.value > 0, "nothing to receive");
+    function splitPayment() external payable override {
+        uint256 value = msg.value;
+        require(value > 0, "nothing to receive");
         uint256 totalShares = getTotalShares(0);
         for (uint8 i; i < _payment.payees.length; i++) {
             address payee = _payment.payees[i];
-            uint256 ethAmount = (msg.value * _payment.shares[i]) / totalShares;
+            uint256 ethAmount = (value * _payment.shares[i]) / totalShares;
             unchecked {
                 _ethBalances[payee] += ethAmount;
             }
@@ -87,14 +92,14 @@ contract GenArtPaymentSplitterV4 is
         return totalShares;
     }
 
-    function release(address account) public override {
+    function release(address account) external override {
         uint256 amount = _ethBalances[account];
         require(amount > 0, "GenArtPaymentSplitter: no funds to release");
         _ethBalances[account] = 0;
         payable(account).transfer(amount);
     }
 
-    function releaseTokenRoyalties(address token) public {
+    function releaseTokenRoyalties(address token) external {
         uint256 totalShares = getTotalShares(1);
         uint256 totalBalance = IERC20(token).balanceOf(address(this));
         require(totalBalance > 0, "GenArtPaymentSplitter: no funds to release");
@@ -112,7 +117,7 @@ contract GenArtPaymentSplitterV4 is
         uint8 paymentType,
         uint256 payeeIndex,
         address newPayee
-    ) public override {
+    ) external override {
         Payment storage payment = paymentType == 0
             ? _payment
             : _paymentRoyalties;

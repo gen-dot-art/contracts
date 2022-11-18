@@ -15,10 +15,6 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
     }
     address public implementation;
 
-    uint256 platformMintShare = 150;
-    address platformPayout;
-    uint256 platformRoyaltiesShare = 250;
-
     event Created(
         address contractAddress,
         address artist,

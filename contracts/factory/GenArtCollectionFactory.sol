@@ -13,6 +13,7 @@ struct CollectionParams {
     string name;
     string symbol;
     string script;
+    bool hasOnChainScript;
     uint256 maxSupply;
     uint8 erc721Index;
     uint8 minterIndex;
@@ -97,7 +98,7 @@ contract GenArtCollectionFactory is GenArtAccess {
         address implementation = erc721Implementations[params.erc721Index];
         require(minter != address(0), "invalid minterIndex");
         require(implementation != address(0), "invalid erc721Index");
-        uint256 id = _getNextCollectionId(bytes(params.script).length > 0);
+        uint256 id = _getNextCollectionId(params.hasOnChainScript);
         bytes memory initializer = _createInitializer(
             id,
             params.artist,

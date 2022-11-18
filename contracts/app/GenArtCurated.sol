@@ -95,6 +95,7 @@ contract GenArtCurated is GenArtAccess {
         string memory name,
         string memory symbol,
         string memory script,
+        bool hasOnChainScript,
         uint256 maxSupply,
         uint8 erc721Index,
         uint8 minterIndex
@@ -108,6 +109,7 @@ contract GenArtCurated is GenArtAccess {
                 name,
                 symbol,
                 script,
+                hasOnChainScript,
                 maxSupply,
                 erc721Index,
                 minterIndex,
