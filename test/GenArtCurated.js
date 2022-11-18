@@ -13,7 +13,7 @@ describe("GenArtCurated", async function () {
   // and reset Hardhat Network to that snapshot in every test.
   async function deploy() {
     // Contracts are deployed using the first signer/account by default
-    const [owner, otherAccount, artistAccount, pool] =
+    const [owner, otherAccount, artistAccount, pool, other2] =
       await ethers.getSigners();
 
     const GenArt = await ethers.getContractFactory("GenArt");
@@ -97,10 +97,16 @@ describe("GenArtCurated", async function () {
     await genartMembership.mint(owner.address, {
       value: priceStandard,
     });
+    await genartMembership.mintMany(other2.address, "3", {
+      value: priceStandard.mul(3),
+    });
     await genartMembership.mint(pool.address, {
       value: priceStandard,
     });
     await genartMembership.mintGold(owner.address, {
+      value: priceGold,
+    });
+    await genartMembership.mintGold(other2.address, {
       value: priceGold,
     });
 
@@ -117,6 +123,7 @@ describe("GenArtCurated", async function () {
       artistAccount,
       otherAccount,
       pool,
+      other2,
     };
   }
 
@@ -149,7 +156,8 @@ describe("GenArtCurated", async function () {
       artistAccount.address,
       name,
       symbol,
-      "",
+      "test",
+      true,
       maxSupply,
       erc721Index,
       pricingMode
@@ -204,16 +212,20 @@ describe("GenArtCurated", async function () {
       await init();
     });
     it("should update script", async () => {
-      const { curated, artistAccount, collection, otherAccount } = await init();
+      const { curated, artistAccount, collection, otherAccount, artist } =
+        await init();
 
       await curated
         .connect(artistAccount)
         .updateScript(collection.address, "artist");
+      const info = await curated.getCollectionInfo(artist.collections[0]);
+      expect(info.collection.script).to.equal("artist");
       await curated.updateScript(collection.address, "admin");
       const fail = curated
         .connect(otherAccount)
         .updateScript(collection.address, "fail");
-
+      const info2 = await curated.getCollectionInfo(artist.collections[0]);
+      expect(info2.collection.script).to.equal("admin");
       await expect(fail).to.revertedWith("not allowed");
     });
     it("should allow only minter", async () => {
@@ -250,17 +262,50 @@ describe("GenArtCurated", async function () {
 
       // console.log("name", await collection.name());
     });
+    it("should mint many", async () => {
+      const { minter, info, collection, other2 } = await init();
+
+      // console.log("a", artist);
+      const mint = await minter
+        .connect(other2)
+        .mintOne(info.collection.contractAddress, "2", {
+          value: ONE_GWEI,
+        });
+
+      await minter.connect(other2).mint(info.collection.contractAddress, "4", {
+        value: BigNumber.from(ONE_GWEI).mul(4),
+      });
+
+      const mintOneFail = minter
+        .connect(other2)
+        .mintOne(info.collection.contractAddress, "3", {
+          value: ONE_GWEI,
+        });
+
+      const mintManyFail = minter
+        .connect(other2)
+        .mint(info.collection.contractAddress, "1", {
+          value: BigNumber.from(ONE_GWEI).mul(1),
+        });
+
+      await expect(mintOneFail).to.revertedWith("no mints available");
+      await expect(mintManyFail).to.revertedWith("no mints available");
+
+      await expect(mint).to.emit(collection, "Mint");
+
+      // console.log("name", await collection.name());
+    });
     it("should mint using flash loan", async () => {
       const { flashMinter, info, collection, pool } = await init();
 
       // console.log("a", artist);
 
-      const fee = 20;
+      const fee = 200;
 
       await flashMinter.setMembershipLendingFee(fee);
 
       const poolBalanceOld = await web3.eth.getBalance(pool.address);
-      const price = ONE_GWEI * (1 + fee / 100);
+      const price = ONE_GWEI * (1 + fee / 1000);
       const mint = await flashMinter.mintOne(
         info.collection.contractAddress,
         "0",
@@ -289,12 +334,12 @@ describe("GenArtCurated", async function () {
 
       // console.log("a", artist);
 
-      const fee = 20;
+      const fee = 200;
 
       await whitelistMinter.setWhitelistFee(fee);
 
       const poolBalanceOld = await web3.eth.getBalance(pool.address);
-      const price = ONE_GWEI * (1 + fee / 100);
+      const price = ONE_GWEI * (1 + fee / 1000);
       const mint = await whitelistMinter
         .connect(otherAccount)
         .mintOne(info.collection.contractAddress, "0", {
@@ -317,19 +362,7 @@ describe("GenArtCurated", async function () {
       expect(poolBalanceNew).to.equal(expectedBalance);
       expect(mintFail).to.revertedWith("no mints available");
     });
-    it("should mint many", async () => {
-      const { minter, info, collection } = await init();
 
-      // console.log("a", artist);
-
-      const mint = await minter.mint(info.collection.contractAddress, "2", {
-        value: ONE_GWEI * 2,
-      });
-
-      await expect(mint).to.emit(collection, "Mint");
-
-      // console.log("name", await collection.name());
-    });
     it("should fail on mint without membership", async () => {
       const { info, artistAccount, minter } = await init();
 
