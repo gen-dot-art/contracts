@@ -41,7 +41,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Add pricing for collection and set artist
+     * @dev Add pricing for collection and set artist
      */
     function addPricing(address collection, address artist)
         external
@@ -57,7 +57,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Set pricing for collection
+     * @dev Set pricing for collection
      * @param collection contract address of the collection
      * @param startTime start time for minting
      * @param price price per token
@@ -92,7 +92,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Get price for collection
+     * @dev Get price for collection
      * @param collection contract address of the collection
      */
     function getPrice(address collection)
@@ -105,7 +105,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Helper function to check for mint price and start date
+     * @dev Helper function to check for mint price and start date
      */
     function _checkMint(address collection, uint256 amount) internal view {
         require(
@@ -120,7 +120,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Helper function to check for available mints for sender
+     * @dev Helper function to check for available mints for sender
      */
     function _checkAvailableMints(
         address collection,
@@ -139,7 +139,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Mint a token
+     * @dev Mint a token
      * @param collection contract address of the collection
      * @param membershipId owned GEN.ART membershipId
      */
@@ -160,7 +160,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Mint a token
+     * @dev Mint a token
      * @param collection contract address of the collection
      * @param amount amount of tokens to mint
      */
@@ -204,7 +204,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Internal function to forward funds to a {GenArtPaymentSplitter}
+     * @dev Internal function to forward funds to a {GenArtPaymentSplitter}
      */
     function _splitPayment(address collection) internal {
         address paymentSplitter = GenArtCurated(genArtCurated)
@@ -215,21 +215,21 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Set the {GenArtInferface} contract address
+     * @dev Set the {GenArtInferface} contract address
      */
     function setInterface(address genartInterface_) external onlyAdmin {
         genartInterface = genartInterface_;
     }
 
     /**
-     * @notice Set the {GenArtCurated} contract address
+     * @dev Set the {GenArtCurated} contract address
      */
     function setCurated(address genartCurated_) external onlyAdmin {
         genArtCurated = genartCurated_;
     }
 
     /**
-     * @notice Get all available mints for account
+     * @dev Get all available mints for account
      * @param collection contract address of the collection
      * @param account address of account
      */
@@ -245,7 +245,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Get available mints for a GEN.ART membership
+     * @dev Get available mints for a GEN.ART membership
      * @param collection contract address of the collection
      * @param membershipId owned GEN.ART membershipId
      */
@@ -259,7 +259,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Get amount of minted tokens for a GEN.ART membership
+     * @dev Get amount of minted tokens for a GEN.ART membership
      * @param collection contract address of the collection
      * @param membershipId owned GEN.ART membershipId
      */
@@ -275,7 +275,7 @@ contract GenArtMinter is GenArtAccess, IGenArtMinter {
     }
 
     /**
-     * @notice Get collection pricing object
+     * @dev Get collection pricing object
      * @param collection contract address of the collection
      */
     function getCollectionPricing(address collection)

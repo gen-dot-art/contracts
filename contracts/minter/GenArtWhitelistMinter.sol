@@ -42,7 +42,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Not need
+     * @dev Not need
      * Note DO NOT USE
      */
     function addPricing(address, address) external override onlyAdmin {
@@ -50,7 +50,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Set pricing for collection
+     * @dev Set pricing for collection
      * @param collection contract address of the collection
      * @param startTime start time for minting
      * @param price price per token
@@ -76,7 +76,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Get price for collection
+     * @dev Get price for collection
      * @param collection contract address of the collection
      */
     function getPrice(address collection)
@@ -89,7 +89,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Helper function to check for mint price, start date
+     * @dev Helper function to check for mint price, start date
      * and avaialble mints for sender
      */
     function _checkMint(address collection) internal view {
@@ -111,7 +111,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Mint a token
+     * @dev Mint a token
      * @param collection contract address of the collection
      * @param "" any uint256
      */
@@ -122,7 +122,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Internal function to mint tokens on {IGenArtERC721} contracts
+     * @dev Internal function to mint tokens on {IGenArtERC721} contracts
      */
     function _mint(address collection) internal {
         collections[collection].whitelistMinted[msg.sender] = true;
@@ -130,7 +130,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Only one token possible to mint
+     * @dev Only one token possible to mint
      * Note DO NOT USE
      */
     function mint(address, uint256) external payable override {
@@ -138,7 +138,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Internal function to forward funds to a {GenArtPaymentSplitter}
+     * @dev Internal function to forward funds to a {GenArtPaymentSplitter}
      */
     function _splitPayment(address collection) internal {
         address paymentSplitter = GenArtCurated(genArtCurated)
@@ -148,35 +148,35 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Set the whitelist fee
+     * @dev Set the whitelist fee
      */
     function setWhitelistFee(uint256 whitelistFee_) external onlyAdmin {
         whitelistFee = whitelistFee_;
     }
 
     /**
-     * @notice Set the {GenArtInferface} contract address
+     * @dev Set the {GenArtInferface} contract address
      */
     function setInterface(address genartInterface_) external onlyAdmin {
         genartInterface = genartInterface_;
     }
 
     /**
-     * @notice Set the {GenArtCurated} contract address
+     * @dev Set the {GenArtCurated} contract address
      */
     function setCurated(address genartCurated_) external onlyAdmin {
         genArtCurated = genartCurated_;
     }
 
     /**
-     * @notice Set the payout address for the flash lending fees
+     * @dev Set the payout address for the flash lending fees
      */
     function setPayoutAddress(address payoutAddress_) external onlyGenArtAdmin {
         payoutAddress = payoutAddress_;
     }
 
     /**
-     * @notice Get all available mints for account
+     * @dev Get all available mints for account
      * @param collection contract address of the collection
      * @param account address of account
      */
@@ -192,7 +192,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Not need
+     * @dev Not need
      * Note DO NOT USE
      */
     function getAvailableMintsForMembership(address, uint256)
@@ -205,7 +205,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Not need
+     * @dev Not need
      * Note DO NOT USE
      */
     function getMembershipMints(address, uint256)
@@ -218,7 +218,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Get collection pricing object
+     * @dev Get collection pricing object
      * @param collection contract address of the collection
      */
     function getCollectionPricing(address collection)
@@ -240,7 +240,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Widthdraw contract balance
+     * @dev Widthdraw contract balance
      */
     function withdraw() external onlyAdmin {
         payable(payoutAddress).transfer(address(this).balance);

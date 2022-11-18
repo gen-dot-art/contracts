@@ -51,7 +51,7 @@ contract GenArtERC721V4 is
     }
 
     /**
-     * @notice Initialize contract
+     * @dev Initialize contract
      * Note This method has to be called right after the creation of the clone.
      * If not, the contract can be taken over by some attacker.
      */
@@ -77,14 +77,14 @@ contract GenArtERC721V4 is
     }
 
     /**
-     * @notice Helper method to check allowed minters
+     * @dev Helper method to check allowed minters
      */
     function _checkMint() internal view {
         require(_minters[_msgSender()], "only minter allowed");
     }
 
     /**
-     * @notice Mint a token
+     * @dev Mint a token
      * @param to address to mint to
      * @param membershipId address to mint to
      */
@@ -94,7 +94,7 @@ contract GenArtERC721V4 is
     }
 
     /**
-     * @notice Creates the token and its hash
+     * @dev Creates the token and its hash
      */
     function _mintOne(address to, uint256 membershipId) internal virtual {
         uint256 tokenId = _info.id * 100_000 + totalSupply() + 1;

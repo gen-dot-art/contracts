@@ -50,7 +50,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Not need
+     * @dev Not need
      * Note DO NOT USE
      */
     function addPricing(address, address) external override onlyAdmin {
@@ -58,7 +58,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Set pricing for collection
+     * @dev Set pricing for collection
      * @param collection contract address of the collection
      * @param startTime start time for minting
      * @param price price per token
@@ -86,7 +86,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Get price for collection
+     * @dev Get price for collection
      * @param collection contract address of the collection
      */
     function getPrice(address collection)
@@ -101,7 +101,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Helper function to check for mint price and start date
+     * @dev Helper function to check for mint price and start date
      */
     function _checkMint(address collection) internal view {
         require(msg.value >= getPrice(collection), "wrong amount sent");
@@ -122,7 +122,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Helper function to check for available mints for sender
+     * @dev Helper function to check for available mints for sender
      */
     function _checkAvailableMints(address collection, uint256 membershipId)
         internal
@@ -142,7 +142,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Mint a token
+     * @dev Mint a token
      * @param collection contract address of the collection
      * @param "" any uint256
      */
@@ -158,7 +158,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Internal function to mint tokens on {IGenArtERC721} contracts
+     * @dev Internal function to mint tokens on {IGenArtERC721} contracts
      */
     function _mint(address collection, uint256 membershipId) internal {
         IGenArtMintAllocator(collections[collection].mintAlloc).update(
@@ -170,7 +170,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Only one token possible to mint
+     * @dev Only one token possible to mint
      * Note DO NOT USE
      */
     function mint(address, uint256) external payable override {
@@ -178,7 +178,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Internal function to forward funds to a {GenArtPaymentSplitter}
+     * @dev Internal function to forward funds to a {GenArtPaymentSplitter}
      */
     function _splitPayment(address collection) internal {
         address paymentSplitter = GenArtCurated(genArtCurated)
@@ -188,7 +188,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Set the flash lending fee
+     * @dev Set the flash lending fee
      */
     function setMembershipLendingFee(uint256 lendingFeePercentage_)
         external
@@ -198,7 +198,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Set membership pool address
+     * @dev Set membership pool address
      */
     function setMembershipLendingPool(address membershipLendingPool_)
         external
@@ -208,28 +208,28 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Set the {GenArtInferface} contract address
+     * @dev Set the {GenArtInferface} contract address
      */
     function setInterface(address genartInterface_) external onlyAdmin {
         genartInterface = genartInterface_;
     }
 
     /**
-     * @notice Set the {GenArtCurated} contract address
+     * @dev Set the {GenArtCurated} contract address
      */
     function setCurated(address genartCurated_) external onlyAdmin {
         genArtCurated = genartCurated_;
     }
 
     /**
-     * @notice Set the payout address for the flash lending fees
+     * @dev Set the payout address for the flash lending fees
      */
     function setPayoutAddress(address payoutAddress_) external onlyGenArtAdmin {
         payoutAddress = payoutAddress_;
     }
 
     /**
-     * @notice Get all available mints for account
+     * @dev Get all available mints for account
      * @param collection contract address of the collection
      * @param account address of account
      */
@@ -245,7 +245,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Get available mints for a GEN.ART membership
+     * @dev Get available mints for a GEN.ART membership
      * @param collection contract address of the collection
      * @param membershipId owned GEN.ART membershipId
      */
@@ -259,7 +259,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Get amount of minted tokens for a GEN.ART membership
+     * @dev Get amount of minted tokens for a GEN.ART membership
      * @param collection contract address of the collection
      * @param membershipId owned GEN.ART membershipId
      */
@@ -275,7 +275,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Get collection pricing object
+     * @dev Get collection pricing object
      * @param collection contract address of the collection
      */
     function getCollectionPricing(address collection)
@@ -287,7 +287,7 @@ contract GenArtFlashMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @notice Widthdraw contract balance
+     * @dev Widthdraw contract balance
      */
     function withdraw() external onlyAdmin {
         payable(payoutAddress).transfer(address(this).balance);

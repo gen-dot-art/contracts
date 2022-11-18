@@ -47,7 +47,7 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
     }
 
     /**
-     * @notice Cone a {PaymentSplitter} implementation contract
+     * @dev Cone a {PaymentSplitter} implementation contract
      */
     function clone(
         address owner,

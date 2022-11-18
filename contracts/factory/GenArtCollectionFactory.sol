@@ -44,7 +44,7 @@ contract GenArtCollectionFactory is GenArtAccess {
     }
 
     /**
-     * @notice Get next collection id
+     * @dev Get next collection id
      */
     function _getNextCollectionId(bool isScript) internal returns (uint256) {
         uint256 id;
@@ -59,7 +59,7 @@ contract GenArtCollectionFactory is GenArtAccess {
     }
 
     /**
-     * @notice Create initializer for clone
+     * @dev Create initializer for clone
      * Note The method signature is created on chain to prevent malicious initialization args
      */
     function _createInitializer(
@@ -87,7 +87,7 @@ contract GenArtCollectionFactory is GenArtAccess {
     }
 
     /**
-     * @notice Cone an implementation contract
+     * @dev Cone an implementation contract
      */
     function cloneCollectionContract(CollectionParams memory params)
         external
@@ -125,7 +125,7 @@ contract GenArtCollectionFactory is GenArtAccess {
     }
 
     /**
-     * @notice Add an ERC721 implementation contract and map by index
+     * @dev Add an ERC721 implementation contract and map by index
      */
     function addErc721Implementation(uint8 index, address implementation)
         external
@@ -135,14 +135,14 @@ contract GenArtCollectionFactory is GenArtAccess {
     }
 
     /**
-     * @notice Add a minter contract and map by index
+     * @dev Add a minter contract and map by index
      */
     function addMinter(uint8 index, address minter) external onlyAdmin {
         minters[index] = minter;
     }
 
     /**
-     * @notice Sets the base tokenURI for collections
+     * @dev Sets the base tokenURI for collections
      */
     function setUri(string memory uri_) external onlyAdmin {
         uri = uri_;

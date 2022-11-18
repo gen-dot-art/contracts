@@ -49,7 +49,7 @@ contract GenArtCurated is GenArtAccess {
     }
 
     /**
-     * @notice Internal functtion to close the ERC721 implementation contract
+     * @dev Internal functtion to close the ERC721 implementation contract
      */
     function _cloneCollection(CollectionParams memory params)
         internal
@@ -67,7 +67,7 @@ contract GenArtCurated is GenArtAccess {
     }
 
     /**
-     * @notice Internal functtion to create the collection and risgister to minter
+     * @dev Internal functtion to create the collection and risgister to minter
      */
     function _createCollection(CollectionParams memory params)
         internal
@@ -81,7 +81,7 @@ contract GenArtCurated is GenArtAccess {
     }
 
     /**
-     * @notice Clones an ERC721 implementation contract
+     * @dev Clones an ERC721 implementation contract
      * @param artist address of artist
      * @param name name of collection
      * @param symbol ERC721 symbol for collection
@@ -120,7 +120,7 @@ contract GenArtCurated is GenArtAccess {
     }
 
     /**
-     * @notice Get all available mints for account
+     * @dev Get all available mints for account
      * @param artist address of artist
      * @param payeesMint address list of payees of mint proceeds
      * @param payeesRoyalties address list of payees of royalties
@@ -151,7 +151,7 @@ contract GenArtCurated is GenArtAccess {
     }
 
     /**
-     * @notice Helper function to get {PaymentSplitter} of artist
+     * @dev Helper function to get {PaymentSplitter} of artist
      */
     function getPaymentSplitterForCollection(address collection)
         external
@@ -162,7 +162,7 @@ contract GenArtCurated is GenArtAccess {
     }
 
     /**
-     * @notice Get artist struct
+     * @dev Get artist struct
      * @param artist adress of artist
      */
     function getArtist(address artist) external view returns (Artist memory) {
@@ -170,7 +170,7 @@ contract GenArtCurated is GenArtAccess {
     }
 
     /**
-     * @notice Get collection info
+     * @dev Get collection info
      * @param collection contract address of the collection
      */
     function getCollectionInfo(address collection)
@@ -199,21 +199,21 @@ contract GenArtCurated is GenArtAccess {
     }
 
     /**
-     * @notice Set the {GenArtCollectionFactory} contract address
+     * @dev Set the {GenArtCollectionFactory} contract address
      */
     function setCollectionFactory(address factory) external onlyAdmin {
         collectionFactory = factory;
     }
 
     /**
-     * @notice Set the {GenArtPaymentSplitterFactory} contract address
+     * @dev Set the {GenArtPaymentSplitterFactory} contract address
      */
     function setPaymentSplitterFactory(address factory) external onlyAdmin {
         paymentSplitterFactory = factory;
     }
 
     /**
-     * @notice Update script of collection
+     * @dev Update script of collection
      * @param collection contract address of the collection
      * @param script single html as string
      */
