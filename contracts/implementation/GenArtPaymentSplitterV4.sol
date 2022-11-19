@@ -36,10 +36,6 @@ contract GenArtPaymentSplitterV4 is
         __GenArtAccessUpgradable_init(owner, owner);
         _payment = Payment(payeesMint, sharesMint);
         _paymentRoyalties = Payment(payeesRoyalties, sharesRoyalties);
-        require(
-            getTotalShares(0) == 1000 && getTotalShares(1) == 1000,
-            "sum of shares must be 1000"
-        );
     }
 
     function splitPayment() external payable override {
