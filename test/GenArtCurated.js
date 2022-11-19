@@ -229,6 +229,9 @@ describe("GenArtCurated", async function () {
   });
   describe("Collection", async () => {
     it("should create artist and collection", async () => {
+      await init();
+    });
+    it("should fail calling initializer on collection", async () => {
       const { collection, owner } = await init();
 
       const fail = collection.initialize(
@@ -264,7 +267,7 @@ describe("GenArtCurated", async function () {
       expect(info2.collection.script).to.equal("admin");
       await expect(fail).to.revertedWith("not allowed");
     });
-    it("should allow only minter", async () => {
+    it("should only allow minter", async () => {
       const { collection, owner } = await init();
 
       const shouldFailMint = collection.mint(owner.address, "1");
@@ -398,7 +401,7 @@ describe("GenArtCurated", async function () {
       expect(poolBalanceNew).to.equal(expectedBalance);
       expect(mintFail).to.revertedWith("no mints available");
     });
-    it("should fail on sell out", async () => {
+    it("should fail on mint sell out", async () => {
       const { minter, other2, factory, mintAlloc, curated, artistAccount } =
         await init();
       const { info, startTime } = await createCollection(
@@ -535,8 +538,7 @@ describe("GenArtCurated", async function () {
       expect(balanceOwner).equals(BigNumber.from(tokens).div(2));
       expect(balanceOwner).equals(balanceArtist);
     });
-
-    it("should fail initializer", async () => {
+    it("should fail calling initializer on payment splitter", async () => {
       const { artist, otherAccount, owner } = await init();
 
       const GenArtPaymentSplitter = await ethers.getContractFactory(
