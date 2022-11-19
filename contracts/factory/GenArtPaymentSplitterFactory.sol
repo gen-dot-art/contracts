@@ -28,6 +28,9 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
         implementation = implementation_;
     }
 
+    /**
+     * @dev Intenal helper method to create initializer
+     */
     function _createInitializer(
         address owner,
         address[] memory payeesMint,
@@ -75,5 +78,12 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
             sharesRoyalties
         );
         return instance;
+    }
+
+    /**
+     * @dev Set the {GenArtPaymentSplitter} implementation
+     */
+    function setImplementation(address implementation_) external onlyAdmin {
+        implementation = implementation_;
     }
 }
