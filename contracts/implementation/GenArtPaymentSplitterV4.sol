@@ -94,15 +94,15 @@ contract GenArtPaymentSplitterV4 is
 
     function release(address account) external override {
         uint256 amount = _ethBalances[account];
-        require(amount > 0, "GenArtPaymentSplitter: no funds to release");
+        require(amount > 0, "no funds to release");
         _ethBalances[account] = 0;
         payable(account).transfer(amount);
     }
 
-    function releaseTokenRoyalties(address token) external {
+    function releaseTokens(address token) external {
         uint256 totalShares = getTotalShares(1);
         uint256 totalBalance = IERC20(token).balanceOf(address(this));
-        require(totalBalance > 0, "GenArtPaymentSplitter: no funds to release");
+        require(totalBalance > 0, "no funds to release");
 
         for (uint8 i; i < _paymentRoyalties.payees.length; i++) {
             address payee = _paymentRoyalties.payees[i];
@@ -122,10 +122,7 @@ contract GenArtPaymentSplitterV4 is
             ? _payment
             : _paymentRoyalties;
         address oldPayee = payment.payees[payeeIndex];
-        require(
-            oldPayee == _msgSender(),
-            "GenArtPaymentSplitter: sender is not current payee"
-        );
+        require(oldPayee == _msgSender(), "sender is not current payee");
         payment.payees[payeeIndex] = newPayee;
     }
 
