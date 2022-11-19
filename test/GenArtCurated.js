@@ -529,7 +529,7 @@ describe("GenArtCurated", async function () {
         .connect(otherAccount)
         .transfer(paymentSplitter.address, tokens);
 
-      await paymentSplitter.releaseTokenRoyalties(token.address);
+      await paymentSplitter.releaseTokens(token.address);
 
       const balanceArtist = await token.balanceOf(artistAccount.address);
 
@@ -557,6 +557,66 @@ describe("GenArtCurated", async function () {
 
       await expect(fail).to.revertedWith(
         "Initializable: contract is already initialized"
+      );
+    });
+    it("should fail if no funds available for account", async () => {
+      const { artist, otherAccount } = await init();
+
+      const GenArtPaymentSplitter = await ethers.getContractFactory(
+        "GenArtPaymentSplitterV4"
+      );
+      const paymentSplitter = await GenArtPaymentSplitter.attach(
+        artist.paymentSplitter
+      );
+      const fail = paymentSplitter
+        .connect(otherAccount)
+        .release(otherAccount.address);
+
+      await expect(fail).to.revertedWith("no funds to release");
+    });
+    it("should fail if unauthorized account updates payee", async () => {
+      const { artist, otherAccount } = await init();
+
+      const GenArtPaymentSplitter = await ethers.getContractFactory(
+        "GenArtPaymentSplitterV4"
+      );
+      const paymentSplitter = await GenArtPaymentSplitter.attach(
+        artist.paymentSplitter
+      );
+      const fail = paymentSplitter
+        .connect(otherAccount)
+        .updatePayee(0, 1, otherAccount.address);
+      const fail2 = paymentSplitter
+        .connect(otherAccount)
+        .updatePayee(1, 1, otherAccount.address);
+
+      await expect(fail).to.revertedWith("sender is not current payee");
+      await expect(fail2).to.revertedWith("sender is not current payee");
+    });
+    it("should update payee", async () => {
+      const { artist, otherAccount, artistAccount } = await init();
+
+      const GenArtPaymentSplitter = await ethers.getContractFactory(
+        "GenArtPaymentSplitterV4"
+      );
+      const paymentSplitter = await GenArtPaymentSplitter.attach(
+        artist.paymentSplitter
+      );
+      await paymentSplitter
+        .connect(artistAccount)
+        .updatePayee(0, 1, otherAccount.address);
+
+      const artistBalanceOld = await web3.eth.getBalance(otherAccount.address);
+
+      await paymentSplitter.splitPayment({ value: ONE_GWEI });
+
+      await paymentSplitter
+        .connect(artistAccount)
+        .release(otherAccount.address);
+
+      const artistBalanceNew = await web3.eth.getBalance(otherAccount.address);
+      expect(artistBalanceNew.toString()).to.equal(
+        BigNumber.from(artistBalanceOld).add(ONE_GWEI / 2)
       );
     });
   });
