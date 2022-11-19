@@ -108,7 +108,7 @@ contract GenArtPaymentSplitterV4 is
             address payee = _paymentRoyalties.payees[i];
             uint256 amount = (totalBalance * _paymentRoyalties.shares[i]) /
                 totalShares;
-            IERC20(token).transferFrom(address(this), payee, amount);
+            IERC20(token).transfer(payee, amount);
             emit IncomingPayment(1, payee, amount);
         }
     }
