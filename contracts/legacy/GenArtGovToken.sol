@@ -558,74 +558,74 @@ contract GenArtGovToken is Ownable {
     using SafeMath for uint256;
     using SafeCast for uint256;
 
-    /// @notice EIP-20 token name for this token
+    /// @dev EIP-20 token name for this token
     string public constant name = "GEN.ART";
 
-    /// @notice EIP-20 token symbol for this token
+    /// @dev EIP-20 token symbol for this token
     string public constant symbol = "GENART";
 
-    /// @notice EIP-20 token decimals for this token
+    /// @dev EIP-20 token decimals for this token
     uint8 public constant decimals = 18;
 
-    /// @notice Total number of tokens in circulation
+    /// @dev Total number of tokens in circulation
     uint256 public totalSupply = 100_000_000e18; // 100 million
 
     mapping(address => mapping(address => uint256)) internal allowances;
 
     mapping(address => uint256) internal balances;
 
-    /// @notice A record of each accounts delegate
+    /// @dev A record of each accounts delegate
     mapping(address => address) public delegates;
 
-    /// @notice A checkpoint for marking number of votes from a given block
+    /// @dev A checkpoint for marking number of votes from a given block
     struct Checkpoint {
         uint32 fromBlock;
         uint224 votes;
     }
 
-    /// @notice A record of votes checkpoints for each account, by index
+    /// @dev A record of votes checkpoints for each account, by index
     mapping(address => mapping(uint32 => Checkpoint)) public checkpoints;
 
-    /// @notice The number of checkpoints for each account
+    /// @dev The number of checkpoints for each account
     mapping(address => uint32) public numCheckpoints;
 
-    /// @notice The EIP-712 typehash for the contract's domain
+    /// @dev The EIP-712 typehash for the contract's domain
     bytes32 public constant DOMAIN_TYPEHASH =
         keccak256(
             "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
         );
 
-    /// @notice The EIP-712 typehash for the delegation struct used by the contract
+    /// @dev The EIP-712 typehash for the delegation struct used by the contract
     bytes32 public constant DELEGATION_TYPEHASH =
         keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
 
-    /// @notice The EIP-712 typehash for the permit struct used by the contract
+    /// @dev The EIP-712 typehash for the permit struct used by the contract
     bytes32 public constant PERMIT_TYPEHASH =
         keccak256(
             "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
         );
 
-    /// @notice A record of states for signing / validating signatures
+    /// @dev A record of states for signing / validating signatures
     mapping(address => uint256) public nonces;
 
-    /// @notice An event thats emitted when an account changes its delegate
+    /// @dev An event thats emitted when an account changes its delegate
     event DelegateChanged(
         address indexed delegator,
         address indexed fromDelegate,
         address indexed toDelegate
     );
 
-    /// @notice An event thats emitted when a delegate account's vote balance changes
+    /// @dev An event thats emitted when a delegate account's vote balance changes
     event DelegateVotesChanged(
         address indexed delegate,
         uint256 previousBalance,
         uint256 newBalance
     );
 
-    /// @notice The standard EIP-20 transfer event
+    /// @dev The standard EIP-20 transfer event
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
-    /// @notice The standard EIP-20 approval event
+    /// @dev The standard EIP-20 approval event
     event Approval(
         address indexed owner,
         address indexed spender,
@@ -637,7 +637,7 @@ contract GenArtGovToken is Ownable {
     }
 
     /**
-     * @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
+     * @dev Get the number of tokens `spender` is approved to spend on behalf of `account`
      * @param account The address of the account holding the funds
      * @param spender The address of the account spending the funds
      * @return The number of tokens approved
@@ -682,7 +682,7 @@ contract GenArtGovToken is Ownable {
     }
 
     /**
-     * @notice Triggers an approval from owner to spender
+     * @dev Triggers an approval from owner to spender
      * @param owner The address to approve from
      * @param spender The address to be approved
      * @param amount The number of tokens that are approved (2^256-1 means infinite)
@@ -735,7 +735,7 @@ contract GenArtGovToken is Ownable {
     }
 
     /**
-     * @notice Get the number of tokens held by the `account`
+     * @dev Get the number of tokens held by the `account`
      * @param account The address of the account to get the balance of
      * @return The number of tokens held
      */
@@ -744,7 +744,7 @@ contract GenArtGovToken is Ownable {
     }
 
     /**
-     * @notice Transfer `amount` tokens from `msg.sender` to `dst`
+     * @dev Transfer `amount` tokens from `msg.sender` to `dst`
      * @param to The address of the destination account
      * @param amount The number of tokens to transfer
      * @return Whether or not the transfer succeeded
@@ -776,7 +776,7 @@ contract GenArtGovToken is Ownable {
     }
 
     /**
-     * @notice Delegate votes from `msg.sender` to `delegatee`
+     * @dev Delegate votes from `msg.sender` to `delegatee`
      * @param delegatee The address to delegate votes to
      */
     function delegate(address delegatee) public {
@@ -784,7 +784,7 @@ contract GenArtGovToken is Ownable {
     }
 
     /**
-     * @notice Delegates votes from signatory to `delegatee`
+     * @dev Delegates votes from signatory to `delegatee`
      * @param delegatee The address to delegate votes to
      * @param nonce The contract state required to match the signature
      * @param expiry The time at which to expire the signature
@@ -822,7 +822,7 @@ contract GenArtGovToken is Ownable {
     }
 
     /**
-     * @notice Gets the current votes balance for `account`
+     * @dev Gets the current votes balance for `account`
      * @param account The address to get votes balance
      * @return The number of current votes for `account`
      */
@@ -833,7 +833,7 @@ contract GenArtGovToken is Ownable {
     }
 
     /**
-     * @notice Determine the prior number of votes for an account as of a block number
+     * @dev Determine the prior number of votes for an account as of a block number
      * @dev Block number must be a finalized block or else this function will revert to prevent misinformation.
      * @param account The address of the account to check
      * @param blockNumber The block number to get the vote balance at

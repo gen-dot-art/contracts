@@ -14,14 +14,14 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const WETH = "0xc778417E063141139Fce010982780140Aa0cD5Ab";
+  const WETH = "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6";
   const GenArtPaymentSplitter = await hre.ethers.getContractFactory(
     "GenArtPaymentSplitterV2"
   );
   const paymentSplitter = await GenArtPaymentSplitter.deploy(WETH);
 
   console.log("GenArtPaymentSplitterV2 deployed to:", paymentSplitter.address);
-  console.log("yarn hardhat verify --network rinkeby", paymentSplitter.address);
+  console.log("yarn hardhat verify --network goerli", paymentSplitter.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
