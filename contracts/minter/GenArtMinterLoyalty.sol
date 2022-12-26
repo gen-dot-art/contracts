@@ -8,6 +8,7 @@ import "../interface/IGenArtMintAllocator.sol";
 import "../interface/IGenArtInterfaceV4.sol";
 import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtPaymentSplitterV4.sol";
+import "./GenArtMinterBase.sol";
 import {GenArtLoyalty} from "../loyalty/GenArtLoyalty.sol";
 
 /**
@@ -16,50 +17,15 @@ import {GenArtLoyalty} from "../loyalty/GenArtLoyalty.sol";
  * Claims rebate from {GenArtLoyalty} on mint
  */
 
-contract GenArtMinterLoyalty is GenArtLoyalty, IGenArtMinter {
-    struct Pricing {
-        address artist;
-        uint256 startTime;
-        uint256 price;
-        address mintAlloc;
-    }
-
-    address public genArtCurated;
-    address public genartInterface;
-
-    mapping(address => Pricing) public collections;
-
-    event PricingSet(
-        address collection,
-        uint256 startTime,
-        uint256 price,
-        address mintAlloc
-    );
-
+contract GenArtMinterLoyalty is GenArtMinterBase, GenArtLoyalty {
     constructor(
         address genartInterface_,
         address genartCurated_,
         address genartVault_
-    ) GenArtLoyalty(genartVault_) {
-        genartInterface = genartInterface_;
-        genArtCurated = genartCurated_;
-    }
-
-    /**
-     * @dev Add pricing for collection and set artist
-     */
-    function addPricing(address collection, address artist)
-        external
-        override
-        onlyAdmin
-    {
-        require(
-            collections[collection].artist == address(0),
-            "pricing already exists for collection"
-        );
-
-        collections[collection] = Pricing(artist, 0, 0, address(0));
-    }
+    )
+        GenArtMinterBase(genartInterface_, genartCurated_)
+        GenArtLoyalty(genartVault_)
+    {}
 
     /**
      * @dev Set pricing for collection
@@ -75,38 +41,12 @@ contract GenArtMinterLoyalty is GenArtLoyalty, IGenArtMinter {
         uint256 price,
         address mintAllocContract,
         uint8[3] memory mintAlloc
-    ) external {
-        address sender = _msgSender();
-        require(
-            collections[collection].artist == sender || admins[sender],
-            "only artist or admin allowed"
-        );
-        require(
-            collections[collection].startTime < block.timestamp,
-            "mint already started for collection"
-        );
-        require(startTime > block.timestamp, "startTime too early");
+    ) external onlyArtistOrAdmin(collection) {
         if (collections[collection].price > 0) {
-            require(admins[sender], "only admin allowed");
+            require(admins[_msgSender()], "only admin allowed");
         }
-        collections[collection].startTime = startTime;
-        collections[collection].price = price;
-        collections[collection].mintAlloc = mintAllocContract;
+        super._setPricing(collection, startTime, price, mintAllocContract);
         IGenArtMintAllocator(mintAllocContract).init(collection, mintAlloc);
-        emit PricingSet(collection, startTime, price, mintAllocContract);
-    }
-
-    /**
-     * @dev Get price for collection
-     * @param collection contract address of the collection
-     */
-    function getPrice(address collection)
-        public
-        view
-        override
-        returns (uint256)
-    {
-        return collections[collection].price;
     }
 
     /**
@@ -240,77 +180,5 @@ contract GenArtMinterLoyalty is GenArtLoyalty, IGenArtMinter {
         ) {
             payable(minter).transfer(rebate * vaultedMints);
         }
-    }
-
-    /**
-     * @dev Set the {GenArtInferface} contract address
-     */
-    function setInterface(address genartInterface_) external onlyAdmin {
-        genartInterface = genartInterface_;
-    }
-
-    /**
-     * @dev Set the {GenArtCurated} contract address
-     */
-    function setCurated(address genartCurated_) external onlyAdmin {
-        genArtCurated = genartCurated_;
-    }
-
-    /**
-     * @dev Get all available mints for account
-     * @param collection contract address of the collection
-     * @param account address of account
-     */
-    function getAvailableMintsForAccount(address collection, address account)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        return
-            IGenArtMintAllocator(collections[collection].mintAlloc)
-                .getAvailableMintsForAccount(collection, account);
-    }
-
-    /**
-     * @dev Get available mints for a GEN.ART membership
-     * @param collection contract address of the collection
-     * @param membershipId owned GEN.ART membershipId
-     */
-    function getAvailableMintsForMembership(
-        address collection,
-        uint256 membershipId
-    ) external view override returns (uint256) {
-        return
-            IGenArtMintAllocator(collections[collection].mintAlloc)
-                .getAvailableMintsForMembership(collection, membershipId);
-    }
-
-    /**
-     * @dev Get amount of minted tokens for a GEN.ART membership
-     * @param collection contract address of the collection
-     * @param membershipId owned GEN.ART membershipId
-     */
-    function getMembershipMints(address collection, uint256 membershipId)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        return
-            IGenArtMintAllocator(collections[collection].mintAlloc)
-                .getMembershipMints(collection, membershipId);
-    }
-
-    /**
-     * @dev Get collection pricing object
-     * @param collection contract address of the collection
-     */
-    function getCollectionPricing(address collection)
-        external
-        view
-        returns (Pricing memory)
-    {
-        return collections[collection];
     }
 }
