@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 import "../access/GenArtAccess.sol";
 import "../legacy/IGenArtMembership.sol";
-import {GenArtVault} from "../loyalty/GenArtVault.sol";
+import {GenArtLoyaltyVault} from "../loyalty/GenArtLoyaltyVault.sol";
 import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtInterfaceV4.sol";
 
@@ -12,11 +12,10 @@ import "../interface/IGenArtInterfaceV4.sol";
 
 contract GenArtInterfaceV4 is GenArtAccess, IGenArtInterfaceV4 {
     IGenArtMembership public genArtMembership;
-    GenArtVault public genartVault;
+    GenArtLoyaltyVault public genartVault;
 
-    constructor(address genArtMembershipAddress_, address genartVault_) {
+    constructor(address genArtMembershipAddress_) {
         genArtMembership = IGenArtMembership(genArtMembershipAddress_);
-        genartVault = GenArtVault(payable(genartVault_));
     }
 
     function isGoldToken(uint256 _membershipId)
@@ -77,5 +76,9 @@ contract GenArtInterfaceV4 is GenArtAccess, IGenArtInterfaceV4 {
         returns (bool)
     {
         return genArtMembership.ownerOf(_membershipId) == address(genartVault);
+    }
+
+    function setLoyaltyVault(address genartVault_) external onlyAdmin {
+        genartVault = GenArtLoyaltyVault(payable(genartVault_));
     }
 }
