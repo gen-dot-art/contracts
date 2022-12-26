@@ -8,36 +8,24 @@ import "../interface/IGenArtMintAllocator.sol";
 import "../interface/IGenArtInterface.sol";
 import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtPaymentSplitterV4.sol";
+import "./GenArtMinterBase.sol";
 
 /**
  * @dev GEN.ART Whitelist Minter
  * Admin for collections deployed on {GenArtCurated}
  */
 
-contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
-    struct Pricing {
-        uint256 startTime;
-        uint256 price;
-        mapping(address => bool) whitelist;
-        mapping(address => bool) whitelistMinted;
-    }
-
-    address public genArtCurated;
-    address public genartInterface;
+contract GenArtWhitelistMinter is GenArtMinterBase {
     address public payoutAddress;
     uint256 public whitelistFee = 0;
 
-    mapping(address => Pricing) public collections;
-
-    event PricingSet(address collection, uint256 startTime, uint256 price);
+    mapping(address => mapping(address => bool)) public whitelists;
 
     constructor(
         address genartInterface_,
         address genartCurated_,
         address payoutAddress_
-    ) GenArtAccess() {
-        genartInterface = genartInterface_;
-        genArtCurated = genartCurated_;
+    ) GenArtMinterBase(genartInterface_, genartCurated_) {
         payoutAddress = payoutAddress_;
     }
 
@@ -62,17 +50,10 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
         uint256 price,
         address[] memory whitelist
     ) external onlyAdmin {
-        require(
-            collections[collection].startTime < block.timestamp,
-            "mint already started for collection"
-        );
-        require(startTime > block.timestamp, "startTime too early");
-        collections[collection].startTime = startTime;
-        collections[collection].price = price;
+        super._setPricing(collection, startTime, price, address(0));
         for (uint256 i; i < whitelist.length; i++) {
-            collections[collection].whitelist[whitelist[i]] = true;
+            whitelists[collection][whitelist[i]] = true;
         }
-        emit PricingSet(collection, startTime, price);
     }
 
     /**
@@ -95,8 +76,7 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     function _checkMint(address collection) internal view {
         require(msg.value >= getPrice(collection), "wrong amount sent");
 
-        bool availableMint = collections[collection].whitelist[msg.sender] &&
-            !collections[collection].whitelistMinted[msg.sender];
+        bool availableMint = whitelists[collection][msg.sender];
 
         require(availableMint, "no mints available");
 
@@ -125,8 +105,10 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
      * @dev Internal function to mint tokens on {IGenArtERC721} contracts
      */
     function _mint(address collection) internal {
-        collections[collection].whitelistMinted[msg.sender] = true;
-        IGenArtERC721(collection).mint(msg.sender, 0);
+        address sender = _msgSender();
+        whitelists[collection][sender] = false;
+
+        IGenArtERC721(collection).mint(sender, 0);
     }
 
     /**
@@ -155,20 +137,6 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     }
 
     /**
-     * @dev Set the {GenArtInferface} contract address
-     */
-    function setInterface(address genartInterface_) external onlyAdmin {
-        genartInterface = genartInterface_;
-    }
-
-    /**
-     * @dev Set the {GenArtCurated} contract address
-     */
-    function setCurated(address genartCurated_) external onlyAdmin {
-        genArtCurated = genartCurated_;
-    }
-
-    /**
      * @dev Set the payout address for the flash lending fees
      */
     function setPayoutAddress(address payoutAddress_) external onlyGenArtAdmin {
@@ -183,12 +151,11 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     function getAvailableMintsForAccount(address collection, address account)
         external
         view
+        virtual
         override
         returns (uint256)
     {
-        bool availableMint = collections[collection].whitelist[account] &&
-            !collections[collection].whitelistMinted[account];
-        return availableMint ? 1 : 0;
+        return whitelists[collection][account] ? 1 : 0;
     }
 
     /**
@@ -211,32 +178,19 @@ contract GenArtWhitelistMinter is IGenArtMinter, GenArtAccess {
     function getMembershipMints(address, uint256)
         external
         view
+        virtual
         override
         returns (uint256)
     {
         return 0;
     }
 
-    /**
-     * @dev Get collection pricing object
-     * @param collection contract address of the collection
-     */
-    function getCollectionPricing(address collection)
-        external
-        view
-        returns (uint256 startTime, uint256 price)
-    {
-        return (
-            collections[collection].startTime,
-            collections[collection].price
-        );
-    }
-
-    function addWhitelist(address collection, address account)
-        external
-        onlyAdmin
-    {
-        collections[collection].whitelist[account] = true;
+    function setWhitelist(
+        address collection,
+        address account,
+        bool whitelisted
+    ) external onlyAdmin {
+        whitelists[collection][account] = whitelisted;
     }
 
     /**
