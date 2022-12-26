@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IERC20, SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "../legacy/IGenArtInterface.sol";
+import "../interface/IGenArtInterfaceV4.sol";
 import "../access/GenArtAccess.sol";
 
 /**
@@ -12,7 +12,7 @@ import "../access/GenArtAccess.sol";
  * @notice It handles the distribution of ETH loyalties
  * @notice forked from https://etherscan.io/address/0xbcd7254a1d759efa08ec7c3291b2e85c5dcc12ce#code
  */
-contract GenArtVault is ReentrancyGuard, GenArtAccess {
+contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     using SafeERC20 for IERC20;
     struct UserInfo {
         uint256 tokens; // shares of token staked
@@ -48,7 +48,7 @@ contract GenArtVault is ReentrancyGuard, GenArtAccess {
 
     address public genartMembership;
 
-    uint256 public weightFactorTokens = 5;
+    uint256 public weightFactorTokens = 2;
     uint256 public weightFactorMemberships = 1;
 
     mapping(uint256 => address) public membershipOwners;
@@ -91,7 +91,7 @@ contract GenArtVault is ReentrancyGuard, GenArtAccess {
                         ? 4000 * PRECISION_FACTOR
                         : 0
                 ),
-            "amount too small"
+            "min 4000 tokens required"
         );
         if (userInfo[msg.sender].membershipIds.length == 0) {
             require(
@@ -241,36 +241,36 @@ contract GenArtVault is ReentrancyGuard, GenArtAccess {
         returns (uint256)
     {
         return
-            (((getUserSharesAbs(user)) *
+            (((getUserShares(user)) *
                 (_rewardPerShare() - (userInfo[user].userRewardPerTokenPaid))) /
                 PRECISION_FACTOR) + userInfo[user].rewards;
     }
 
     /**
-     * @notice Return absolute total shares
-     */
-    function getTotalSharesAbs() public view returns (uint256) {
-        return
-            (weightFactorTokens * totalTokenShares) +
-            (weightFactorMemberships * totalMembershipShares);
-    }
-
-    /**
      * @notice Return weighted shares of user
      */
-    function getUserSharesAbs(address user) public view returns (uint256) {
+    function getUserShares(address user) public view returns (uint256) {
         uint256 userMembershipShares;
         for (uint256 i = 0; i < userInfo[user].membershipIds.length; i++) {
             userMembershipShares += _getMembershipShareValue(
                 userInfo[user].membershipIds[i]
             );
         }
-
         unchecked {
-            return (weightFactorTokens *
-                userInfo[user].tokens +
-                weightFactorMemberships *
-                userMembershipShares);
+            uint256 tokenShares = totalTokenShares == 0
+                ? 0
+                : (weightFactorTokens *
+                    userInfo[user].tokens *
+                    PRECISION_FACTOR) / totalTokenShares;
+
+            uint256 membershipShares = totalMembershipShares == 0
+                ? 0
+                : (weightFactorMemberships *
+                    userMembershipShares *
+                    PRECISION_FACTOR) / totalMembershipShares;
+            return
+                (tokenShares + membershipShares) /
+                (weightFactorMemberships + weightFactorTokens);
         }
     }
 
@@ -285,7 +285,7 @@ contract GenArtVault is ReentrancyGuard, GenArtAccess {
         // 5 shares per gold membership. 1 share for standard memberships
         return
             (
-                IGenArtInterface(genartInterface).isGoldToken(membershipId)
+                IGenArtInterfaceV4(genartInterface).isGoldToken(membershipId)
                     ? 5
                     : 1
             ) * PRECISION_FACTOR;
@@ -302,16 +302,13 @@ contract GenArtVault is ReentrancyGuard, GenArtAccess {
      * @notice Return reward per share
      */
     function _rewardPerShare() internal view returns (uint256) {
-        uint256 totalShares = getTotalSharesAbs();
-        if (totalShares == 0) {
+        if (totalTokenShares == 0) {
             return rewardPerTokenStored;
         }
 
         return
             rewardPerTokenStored +
-            ((_lastRewardBlock() - lastUpdateBlock) *
-                (currentRewardPerBlock * PRECISION_FACTOR)) /
-            totalShares;
+            ((_lastRewardBlock() - lastUpdateBlock) * (currentRewardPerBlock));
     }
 
     /**
@@ -397,13 +394,10 @@ contract GenArtVault is ReentrancyGuard, GenArtAccess {
             uint256
         )
     {
-        uint256 totalShares = getTotalSharesAbs();
         return (
             userInfo[user].tokens,
             userInfo[user].membershipIds,
-            totalShares == 0
-                ? 0
-                : (getUserSharesAbs(user) * PRECISION_FACTOR) / totalShares,
+            totalTokenShares == 0 ? 0 : getUserShares(user),
             _calculatePendingRewards(user)
         );
     }

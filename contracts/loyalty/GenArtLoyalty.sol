@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 import "../access/GenArtAccess.sol";
-import "./GenArtVault.sol";
+import "./GenArtLoyaltyVault.sol";
 
 /**
  * @dev Implements rebates and loyalties for GEN.ART members
@@ -32,7 +32,7 @@ abstract contract GenArtLoyalty is GenArtAccess {
         );
         uint256 balance = address(this).balance;
         require(balance > 0, "zero balance");
-        GenArtVault(payable(genartVault)).updateRewards{value: balance}(
+        GenArtLoyaltyVault(payable(genartVault)).updateRewards{value: balance}(
             loyaltyDistributionBlocks
         );
         lastDistributionBlock = block.number;
