@@ -235,8 +235,8 @@ contract GenArtMinterLoyalty is GenArtLoyalty, IGenArtMinter {
 
         if (
             vaultedMints > 0 &&
-            collections[collection].startTime + rebateWindowSec <=
-            block.timestamp
+            block.timestamp <=
+            collections[collection].startTime + rebateWindowSec
         ) {
             payable(minter).transfer(rebate * vaultedMints);
         }

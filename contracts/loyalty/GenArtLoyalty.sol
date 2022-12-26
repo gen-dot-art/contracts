@@ -27,7 +27,7 @@ abstract contract GenArtLoyalty is GenArtAccess {
     function distributeLoyalties() public {
         require(
             lastDistributionBlock == 0 ||
-                lastDistributionBlock + distributionDelayBlock >= block.number,
+                block.number >= lastDistributionBlock + distributionDelayBlock,
             "distribution delayed"
         );
         uint256 balance = address(this).balance;
