@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../access/GenArtAccess.sol";
 import "../app/GenArtCurated.sol";
 import "../interface/IGenArtMinter.sol";
@@ -17,7 +18,11 @@ import {GenArtLoyalty} from "../loyalty/GenArtLoyalty.sol";
  * Claims rebate from {GenArtLoyalty} on mint
  */
 
-contract GenArtMinterLoyalty is GenArtMinterBase, GenArtLoyalty {
+contract GenArtMinterLoyalty is
+    GenArtMinterBase,
+    GenArtLoyalty,
+    ReentrancyGuard
+{
     constructor(
         address genartInterface_,
         address genartCurated_,
@@ -95,6 +100,7 @@ contract GenArtMinterLoyalty is GenArtMinterBase, GenArtLoyalty {
         external
         payable
         override
+        nonReentrant
     {
         address minter = _msgSender();
         bool isVaulted = _checkAvailableMints(collection, membershipId, 1);
@@ -118,6 +124,7 @@ contract GenArtMinterLoyalty is GenArtMinterBase, GenArtLoyalty {
         external
         payable
         override
+        nonReentrant
     {
         // get all available mints for sender
         uint256 price = _checkMint(collection, amount);
