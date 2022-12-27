@@ -77,31 +77,6 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     }
 
     /**
-     * checks requirements for depositing a stake
-     */
-    function _checkDeposit(uint256[] memory membershipIds, uint256 amount)
-        internal
-        view
-    {
-        // check required amount of tokens
-        require(
-            amount >=
-                (
-                    userInfo[msg.sender].membershipIds.length == 0
-                        ? 4000 * PRECISION_FACTOR
-                        : 0
-                ),
-            "min 4000 tokens required"
-        );
-        if (userInfo[msg.sender].membershipIds.length == 0) {
-            require(
-                membershipIds.length > 0,
-                "minimum one GEN.ART membership required"
-            );
-        }
-    }
-
-    /**
      * @notice Deposit staked tokens (and collect reward tokens if requested)
      * @param amount amount to deposit (in GENART)
      */
@@ -109,71 +84,26 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         external
         nonReentrant
     {
-        _checkDeposit(membershipIds, amount);
-        _deposit(membershipIds, amount);
-    }
-
-    function _deposit(uint256[] memory membershipIds, uint256 amount) internal {
-        // Update reward for user
-        _updateReward(msg.sender);
-
-        // send memberships to this contract
-        for (uint256 i; i < membershipIds.length; i++) {
-            IERC721(genartMembership).transferFrom(
-                msg.sender,
-                address(this),
-                membershipIds[i]
-            );
-            // save the membership token Ids
-            userInfo[msg.sender].membershipIds.push(membershipIds[i]);
-            membershipOwners[membershipIds[i]] = msg.sender;
-            // adjust internal membership shares
-            totalMembershipShares += _getMembershipShareValue(membershipIds[i]);
-        }
-
-        // Transfer GENART tokens to this address
-        genartToken.transferFrom(msg.sender, address(this), amount);
-
-        // Adjust internal token shares
-        userInfo[msg.sender].tokens += amount;
-        totalTokenShares += amount;
-
-        emit Deposit(msg.sender, amount);
+        address sender = _msgSender();
+        _checkDeposit(sender, membershipIds, amount);
+        _deposit(sender, membershipIds, amount);
     }
 
     function harvest() external nonReentrant {
-        // // If pending rewards are null, revert
-        uint256 pendingRewards = _harvest();
+        address sender = _msgSender();
+        uint256 pendingRewards = _harvest(sender);
         require(pendingRewards > 0, "zero rewards to harvest");
         // Transfer reward token to sender
-        payable(msg.sender).transfer(pendingRewards);
-    }
-
-    /**
-     * @notice Harvest reward tokens that are pending
-     */
-    function _harvest() internal returns (uint256) {
-        // Update reward for user
-        _updateReward(msg.sender);
-
-        // Retrieve pending rewards
-        uint256 pendingRewards = userInfo[msg.sender].rewards;
-
-        if (pendingRewards == 0) return 0;
-        // Adjust user rewards and transfer
-        userInfo[msg.sender].rewards = 0;
-
-        emit Harvest(msg.sender, pendingRewards);
-
-        return pendingRewards;
+        payable(sender).transfer(pendingRewards);
     }
 
     /**
      * @notice Withdraw all staked tokens (and collect reward tokens if requested)
      */
     function withdraw() external nonReentrant {
-        require(userInfo[msg.sender].tokens > 0, "zero shares");
-        _withdraw();
+        address sender = _msgSender();
+        require(userInfo[sender].tokens > 0, "zero shares");
+        _withdraw(sender);
     }
 
     /**
@@ -205,6 +135,194 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         );
     }
 
+    function setWeightFactors(
+        uint256 newWeightFactorTokens,
+        uint256 newWeightFactorMemberships
+    ) public onlyAdmin {
+        weightFactorTokens = newWeightFactorTokens;
+        weightFactorMemberships = newWeightFactorMemberships;
+    }
+
+    function collectDust(uint256 amount) public onlyGenArtAdmin {
+        payable(owner()).transfer(amount);
+    }
+
+    /**
+     * checks requirements for depositing a stake
+     */
+    function _checkDeposit(
+        address user,
+        uint256[] memory membershipIds,
+        uint256 amount
+    ) internal view {
+        // check required amount of tokens
+        require(
+            amount >=
+                (
+                    userInfo[user].membershipIds.length == 0
+                        ? 4000 * PRECISION_FACTOR
+                        : 0
+                ),
+            "min 4000 tokens required"
+        );
+        if (userInfo[user].membershipIds.length == 0) {
+            require(
+                membershipIds.length > 0,
+                "minimum one GEN.ART membership required"
+            );
+        }
+    }
+
+    /**
+     * @notice Return share value of a membership based on tier
+     */
+    function _getMembershipShareValue(uint256 membershipId)
+        internal
+        view
+        returns (uint256)
+    {
+        // 5 shares per gold membership. 1 share for standard memberships
+        return
+            (
+                IGenArtInterfaceV4(genartInterface).isGoldToken(membershipId)
+                    ? 5
+                    : 1
+            ) * PRECISION_FACTOR;
+    }
+
+    function _deposit(
+        address user,
+        uint256[] memory membershipIds,
+        uint256 amount
+    ) internal {
+        // Update reward for user
+        _updateReward(user);
+        // send memberships to this contract
+        for (uint256 i; i < membershipIds.length; i++) {
+            IERC721(genartMembership).transferFrom(
+                user,
+                address(this),
+                membershipIds[i]
+            );
+            // save the membership token Ids
+            userInfo[user].membershipIds.push(membershipIds[i]);
+            membershipOwners[membershipIds[i]] = user;
+            // adjust internal membership shares
+            totalMembershipShares += _getMembershipShareValue(membershipIds[i]);
+        }
+
+        // Transfer GENART tokens to this address
+        genartToken.transferFrom(user, address(this), amount);
+
+        // Adjust internal token shares
+        userInfo[user].tokens += amount;
+        totalTokenShares += amount;
+
+        emit Deposit(user, amount);
+    }
+
+    /**
+     * @notice Update reward for a user account
+     * @param _user address of the user
+     */
+    function _updateReward(address _user) internal {
+        if (block.number != lastUpdateBlock) {
+            rewardPerTokenStored = _rewardPerShare();
+            lastUpdateBlock = _lastRewardBlock();
+        }
+
+        userInfo[_user].rewards = _calculatePendingRewards(_user);
+        userInfo[_user].userRewardPerTokenPaid = rewardPerTokenStored;
+    }
+
+    /**
+     * @notice Withdraw staked tokens and memberships and collect rewards
+     */
+    function _withdraw(address user) internal {
+        // harvest rewards
+        uint256 pendingRewards = _harvest(user);
+        uint256 tokens = userInfo[user].tokens;
+        uint256[] memory memberships = userInfo[user].membershipIds;
+
+        // adjust internal token shares
+        userInfo[user].tokens = 0;
+        totalTokenShares -= tokens;
+
+        // Transfer GENART tokens to user
+        genartToken.safeTransfer(user, tokens);
+        for (uint256 i = memberships.length; i >= 1; i--) {
+            // remove membership token id from user info object
+            userInfo[user].membershipIds.pop();
+            membershipOwners[memberships[i - 1]] = address(0);
+            // adjust internal membership shares
+            totalMembershipShares -= _getMembershipShareValue(
+                memberships[i - 1]
+            );
+            IERC721(genartMembership).transferFrom(
+                address(this),
+                user,
+                memberships[i - 1]
+            );
+        }
+        // Transfer reward token to user
+        payable(user).transfer(pendingRewards);
+        emit Withdraw(user, tokens);
+    }
+
+    /**
+     * @notice Harvest reward tokens that are pending
+     */
+    function _harvest(address user) internal returns (uint256) {
+        // Update reward for user
+        _updateReward(user);
+
+        // Retrieve pending rewards
+        uint256 pendingRewards = userInfo[user].rewards;
+
+        if (pendingRewards == 0) return 0;
+        // Adjust user rewards and transfer
+        userInfo[user].rewards = 0;
+
+        emit Harvest(user, pendingRewards);
+
+        return pendingRewards;
+    }
+
+    /**
+     * @notice Return last block where rewards must be distributed
+     */
+    function _lastRewardBlock() internal view returns (uint256) {
+        return block.number < periodEndBlock ? block.number : periodEndBlock;
+    }
+
+    /**
+     * @notice Return reward per share
+     */
+    function _rewardPerShare() internal view returns (uint256) {
+        if (totalTokenShares == 0) {
+            return rewardPerTokenStored;
+        }
+
+        return
+            rewardPerTokenStored +
+            ((_lastRewardBlock() - lastUpdateBlock) * (currentRewardPerBlock));
+    }
+
+    /**
+     * @notice Calculate pending rewards for a user
+     * @param user address of the user
+     */
+    function _calculatePendingRewards(address user)
+        internal
+        view
+        returns (uint256)
+    {
+        return
+            (((getUserShares(user)) *
+                (_rewardPerShare() - (userInfo[user].userRewardPerTokenPaid))) /
+                PRECISION_FACTOR) + userInfo[user].rewards;
+    }
+
     /**
      * @notice Calculate pending rewards (WETH) for a user
      * @param user address of the user
@@ -229,21 +347,6 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
      */
     function rewardPerShare() external view returns (uint256) {
         return _rewardPerShare();
-    }
-
-    /**
-     * @notice Calculate pending rewards for a user
-     * @param user address of the user
-     */
-    function _calculatePendingRewards(address user)
-        internal
-        view
-        returns (uint256)
-    {
-        return
-            (((getUserShares(user)) *
-                (_rewardPerShare() - (userInfo[user].userRewardPerTokenPaid))) /
-                PRECISION_FACTOR) + userInfo[user].rewards;
     }
 
     /**
@@ -274,116 +377,6 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         }
     }
 
-    /**
-     * @notice Return share value of a membership based on tier
-     */
-    function _getMembershipShareValue(uint256 membershipId)
-        internal
-        view
-        returns (uint256)
-    {
-        // 5 shares per gold membership. 1 share for standard memberships
-        return
-            (
-                IGenArtInterfaceV4(genartInterface).isGoldToken(membershipId)
-                    ? 5
-                    : 1
-            ) * PRECISION_FACTOR;
-    }
-
-    /**
-     * @notice Return last block where rewards must be distributed
-     */
-    function _lastRewardBlock() internal view returns (uint256) {
-        return block.number < periodEndBlock ? block.number : periodEndBlock;
-    }
-
-    /**
-     * @notice Return reward per share
-     */
-    function _rewardPerShare() internal view returns (uint256) {
-        if (totalTokenShares == 0) {
-            return rewardPerTokenStored;
-        }
-
-        return
-            rewardPerTokenStored +
-            ((_lastRewardBlock() - lastUpdateBlock) * (currentRewardPerBlock));
-    }
-
-    /**
-     * @notice Update reward for a user account
-     * @param _user address of the user
-     */
-    function _updateReward(address _user) internal {
-        if (block.number != lastUpdateBlock) {
-            rewardPerTokenStored = _rewardPerShare();
-            lastUpdateBlock = _lastRewardBlock();
-        }
-
-        userInfo[_user].rewards = _calculatePendingRewards(_user);
-        userInfo[_user].userRewardPerTokenPaid = rewardPerTokenStored;
-    }
-
-    /**
-     * @notice Withdraw staked tokens and memberships and collect rewards
-     */
-    function _withdraw() internal {
-        // harvest rewards
-        uint256 pendingRewards = _harvest();
-
-        uint256 tokens = userInfo[msg.sender].tokens;
-        uint256[] memory memberships = userInfo[msg.sender].membershipIds;
-
-        // adjust internal token shares
-        userInfo[msg.sender].tokens = 0;
-        totalTokenShares -= tokens;
-
-        // Transfer GENART tokens to sender
-        genartToken.safeTransfer(msg.sender, tokens);
-        for (uint256 i = memberships.length; i >= 1; i--) {
-            // remove membership token id from user info object
-            userInfo[msg.sender].membershipIds.pop();
-            membershipOwners[memberships[i - 1]] = address(0);
-            // adjust internal membership shares
-            totalMembershipShares -= _getMembershipShareValue(
-                memberships[i - 1]
-            );
-            IERC721(genartMembership).transferFrom(
-                address(this),
-                msg.sender,
-                memberships[i - 1]
-            );
-        }
-        // Transfer reward token to sender
-        payable(msg.sender).transfer(pendingRewards);
-        emit Withdraw(msg.sender, tokens);
-    }
-
-    function setWeightFactors(
-        uint256 newWeightFactorTokens,
-        uint256 newWeightFactorMemberships
-    ) public onlyAdmin {
-        weightFactorTokens = newWeightFactorTokens;
-        weightFactorMemberships = newWeightFactorMemberships;
-    }
-
-    function collectDust(uint256 amount) public onlyAdmin {
-        payable(owner()).transfer(amount);
-    }
-
-    receive() external payable {
-        payable(owner()).transfer(msg.value);
-    }
-
-    function getMembershipsOf(address user)
-        external
-        view
-        returns (uint256[] memory)
-    {
-        return userInfo[user].membershipIds;
-    }
-
     function getStake(address user)
         external
         view
@@ -400,5 +393,17 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
             totalTokenShares == 0 ? 0 : getUserShares(user),
             _calculatePendingRewards(user)
         );
+    }
+
+    function getMembershipsOf(address user)
+        external
+        view
+        returns (uint256[] memory)
+    {
+        return userInfo[user].membershipIds;
+    }
+
+    receive() external payable {
+        payable(owner()).transfer(msg.value);
     }
 }
