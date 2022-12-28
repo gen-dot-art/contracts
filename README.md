@@ -52,3 +52,6 @@ Allows admin to create clone contracts via `GenArtCollectionFactory` and `GenArt
 | GenArtMinter                 | [0x268dA94c29EdD4E6E82825dA94617dAE2eB6FD47](https://etherscan.io/address/0x268dA94c29EdD4E6E82825dA94617dAE2eB6FD47) | [0x66158d54F31dB3B107CA6f3e43d25E59657e29B4](https://goerli.etherscan.io/address/0x66158d54F31dB3B107CA6f3e43d25E59657e29B4)                                         |
 | GenArtFlashMinter            | [0x3B34341A6fbbee1422B88e888af58D958B41c888](https://etherscan.io/address/0x3B34341A6fbbee1422B88e888af58D958B41c888) | [0xa6A58aD622f96a1ce66097f023ED9Da833C6a125](https://goerli.etherscan.io/address/0xa6A58aD622f96a1ce66097f023ED9Da833C6a125)                                         |
 | GenArtWhitelistMinter        |  | [0xF63E470433FbD333c4a4BC6dB32a152C5a07f170](https://goerli.etherscan.io/address/0xF63E470433FbD333c4a4BC6dB32a152C5a07f170) |
+| GenArtInterfaceV4        |  | [0x44897375074ccd9d99f6c08e61adeab4a3910723](https://goerli.etherscan.io/address/0x44897375074ccd9d99f6c08e61adeab4a3910723) |
+| GenArtGovToken        |  | [0xcee4b255a5c4644f5052f728200903a729d75084](https://goerli.etherscan.io/address/0xcee4b255a5c4644f5052f728200903a729d75084) |
+| GenArtLoyaltyVault        |  | [0xa956be20b31db59f78d640d4df188600df72b069](https://goerli.etherscan.io/address/0xa956be20b31db59f78d640d4df188600df72b069) |
