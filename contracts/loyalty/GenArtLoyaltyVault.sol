@@ -63,7 +63,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         uint256 rewardPerBlock,
         uint256 reward
     );
-    event Withdraw(address indexed user, uint256 amount);
+    event Withdraw(address indexed user, uint256 amount, uint256[] memberships);
 
     /**
      * @notice Constructor
@@ -107,6 +107,16 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         address sender = _msgSender();
         require(userInfo[sender].tokens > 0, "zero shares");
         _withdraw(sender);
+    }
+
+    /**
+     * @notice Withdraw staked tokens and memberships
+     */
+    function withdrawPartial(
+        uint256 amount,
+        uint256[] memory membershipsToWithdraw
+    ) external nonReentrant {
+        _withdrawPartial(msg.sender, amount, membershipsToWithdraw);
     }
 
     /**
@@ -171,15 +181,15 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
             amount >=
                 (
                     userInfo[user].membershipIds.length == 0
-                        ? 4000 * PRECISION_FACTOR
+                        ? minimumTokenAmount * PRECISION_FACTOR
                         : 0
                 ),
-            "min 4000 tokens required"
+            "not enough tokens"
         );
         if (userInfo[user].membershipIds.length == 0) {
             require(
-                membershipIds.length > 0,
-                "minimum one GEN.ART membership required"
+                membershipIds.length >= minimumMembershipAmount,
+                "not enough memberships"
             );
         }
     }
@@ -277,7 +287,79 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         }
         // Transfer reward token to user
         payable(user).transfer(pendingRewards);
-        emit Withdraw(user, tokens);
+        emit Withdraw(user, tokens, memberships);
+    }
+
+    /**
+     * @notice Withdraw staked tokens and memberships
+     */
+    function _withdrawPartial(
+        address user,
+        uint256 amount,
+        uint256[] memory membershipsToWithdraw
+    ) internal {
+        // harvest rewards
+        uint256 pendingRewards = _harvest(user);
+        uint256 tokens = userInfo[user].tokens;
+        uint256[] memory memberships = userInfo[user].membershipIds;
+        uint256 remainingTokens;
+        uint256 remainingMemberships;
+        unchecked {
+            remainingTokens = tokens - amount;
+            remainingMemberships =
+                memberships.length -
+                membershipsToWithdraw.length;
+        }
+        require(
+            remainingTokens >= minimumTokenAmount,
+            "remaining tokens less then minimumTokenAmount"
+        );
+        require(
+            remainingMemberships >= minimumMembershipAmount,
+            "remaining memberships less then minimumMembershipAmount"
+        );
+
+        // adjust internal token shares
+        userInfo[user].tokens = remainingTokens;
+        totalTokenShares -= amount;
+
+        // Transfer GENART tokens to user
+        genartToken.safeTransfer(user, tokens);
+        for (uint256 i; i < membershipsToWithdraw.length; i++) {
+            // remove membership token id from user info object
+            uint256 vaultedMembershipIndex = findArrayIndex(
+                memberships,
+                membershipsToWithdraw[i]
+            );
+            userInfo[user].membershipIds[vaultedMembershipIndex] = userInfo[
+                user
+            ].membershipIds[memberships.length - 1];
+            userInfo[user].membershipIds.pop();
+            membershipOwners[membershipsToWithdraw[i]] = address(0);
+            // adjust internal membership shares
+            totalMembershipShares -= _getMembershipShareValue(
+                membershipsToWithdraw[i]
+            );
+            IERC721(genartMembership).transferFrom(
+                address(this),
+                user,
+                membershipsToWithdraw[i]
+            );
+        }
+        // Transfer reward token to user
+        payable(user).transfer(pendingRewards);
+        emit Withdraw(user, tokens, membershipsToWithdraw);
+    }
+
+    function findArrayIndex(uint256[] memory array, uint256 value)
+        internal
+        pure
+        returns (uint256 index)
+    {
+        for (uint256 i; i < array.length; i++) {
+            if (array[i] == value) return i;
+        }
+        revert("value not found in array");
     }
 
     /**

@@ -125,7 +125,10 @@ describe("GenArtLoyalty", async function () {
       await token.connect(user1).approve(vault.address, tokenBalance);
       await membership.connect(user1).setApprovalForAll(vault.address, true);
 
-      await vault.connect(user1).deposit(stakingMembershipsUser1, tokenBalance);
+      const deposit = await vault
+        .connect(user1)
+        .deposit(stakingMembershipsUser1, tokenBalance);
+      expect(deposit).to.changeTokenBalance(token.address, vault, tokenBalance);
 
       const contractMemberships = await membership.getTokensByOwner(
         vault.address
@@ -160,9 +163,7 @@ describe("GenArtLoyalty", async function () {
 
       const fail = vault.connect(user1).deposit([], tokenBalance);
 
-      await expect(fail).to.revertedWith(
-        "minimum one GEN.ART membership required"
-      );
+      await expect(fail).to.revertedWith("not enough memberships");
     });
     it("Fail if token amount too small", async () => {
       const { membership, user1, vault, token } = await deploy();
@@ -179,7 +180,7 @@ describe("GenArtLoyalty", async function () {
         .connect(user1)
         .deposit(stakingMembershipsUser1, BigNumber.from(10).pow(18).mul(3999));
 
-      await expect(fail).to.revertedWith("min 4000 tokens required");
+      await expect(fail).to.revertedWith("not enough tokens");
     });
     it("Withdraw memberships and tokens", async () => {
       const { membership, user1, vault, token } = await deploy();
@@ -194,23 +195,138 @@ describe("GenArtLoyalty", async function () {
       await vault.connect(user1).deposit(stakingMembershipsUser1, tokenBalance);
 
       const membershipsStaked = await vault.getMembershipsOf(user1.address);
-
       const actualOwner = await vault.membershipOwners(
         membershipsStaked[0].toString()
       );
       expect(actualOwner).equals(user1.address);
 
-      await vault.connect(user1).withdraw();
+      const withdraw = await vault.connect(user1).withdraw();
+      expect(withdraw).to.changeTokenBalance(
+        token.address,
+        vault,
+        -tokenBalance
+      );
+      expect(withdraw).to.changeTokenBalance(
+        token.address,
+        user1,
+        tokenBalance
+      );
+
       const memberships = await membership.getTokensByOwner(user1.address);
       const membershipsStakedAfter = await vault.getMembershipsOf(
         user1.address
       );
+      const hasInvalidMemberships = membershipsStakedAfter.some((id) =>
+        memberships.find((_id) => _id.toString() === id.toString())
+      );
+      if (hasInvalidMemberships) {
+        throw new Error("Invalid memberships found in userInfo object");
+      }
       expect(memberships.length).equals(membershipsUser1.length);
       expect(membershipsStakedAfter.length).equals(0);
       const actualOwnerAfter = await vault.membershipOwners(
         membershipsStaked[0].toString()
       );
       expect(actualOwnerAfter).equals(ZERO_ADDRESS);
+    });
+    it("Withdraw part of memberships and tokens", async () => {
+      const { membership, user1, vault, token } = await deploy();
+      const tokenBalance = await token.balanceOf(user1.address);
+      const membershipsUser1 = await membership.getTokensByOwner(user1.address);
+      const stakingMembershipsUser1 = membershipsUser1
+        .filter((m) => m.toNumber() <= 50)
+        .map((m) => m.toString());
+      await token.connect(user1).approve(vault.address, tokenBalance);
+      await membership.connect(user1).setApprovalForAll(vault.address, true);
+
+      const deposit = await vault
+        .connect(user1)
+        .deposit(stakingMembershipsUser1, tokenBalance);
+      expect(deposit).to.changeTokenBalance(token.address, vault, tokenBalance);
+
+      const membershipsStaked = await vault.getMembershipsOf(user1.address);
+
+      const actualOwner = await vault.membershipOwners(
+        membershipsStaked[0].toString()
+      );
+      expect(actualOwner).equals(user1.address);
+      const withdrawBalance = tokenBalance.mul(10).div(100);
+      const withdraw = await vault
+        .connect(user1)
+        .withdrawPartial(withdrawBalance, [stakingMembershipsUser1[0]]);
+
+      expect(withdraw).to.changeTokenBalance(
+        token.address,
+        vault,
+        -withdrawBalance
+      );
+      expect(withdraw).to.changeTokenBalance(
+        token.address,
+        user1,
+        withdrawBalance
+      );
+      const memberships = await membership.getTokensByOwner(user1.address);
+
+      const membershipsStakedAfter = await vault.getMembershipsOf(
+        user1.address
+      );
+      const hasInvalidMemberships = membershipsStakedAfter.some((id) =>
+        memberships.find((_id) => _id.toString() === id.toString())
+      );
+      if (hasInvalidMemberships) {
+        throw new Error("Invalid memberships found in userInfo object");
+      }
+      expect(memberships.length).equals(1);
+      expect(membershipsStakedAfter.length).equals(membershipsUser1.length - 1);
+      const actualOwnerAfter = await vault.membershipOwners(
+        membershipsStaked[0].toString()
+      );
+      expect(actualOwnerAfter).equals(ZERO_ADDRESS);
+    });
+    it("Throw partial withdraw if membership not owned by user", async () => {
+      const { membership, user1, vault, token, user2 } = await deploy();
+      const tokenBalance = await token.balanceOf(user1.address);
+      const membershipsUser1 = await membership.getTokensByOwner(user1.address);
+      const membershipsUser2 = await membership.getTokensByOwner(user2.address);
+      const stakingMembershipsUser1 = membershipsUser1
+        .filter((m) => m.toNumber() <= 50)
+        .map((m) => m.toString());
+      await token.connect(user1).approve(vault.address, tokenBalance);
+      await membership.connect(user1).setApprovalForAll(vault.address, true);
+
+      await vault.connect(user1).deposit(stakingMembershipsUser1, tokenBalance);
+
+      const fail = vault
+        .connect(user1)
+        .withdrawPartial(0, [membershipsUser2[0]]);
+
+      await expect(fail).to.revertedWith("value not found in array");
+    });
+    it("Throw if partial withdraw exceeds min amount", async () => {
+      const { membership, user1, vault, token } = await deploy();
+      const tokenBalance = await token.balanceOf(user1.address);
+      const membershipsUser1 = await membership.getTokensByOwner(user1.address);
+      const stakingMembershipsUser1 = membershipsUser1
+        .filter((m) => m.toNumber() <= 50)
+        .map((m) => m.toString());
+      await token.connect(user1).approve(vault.address, tokenBalance);
+      await membership.connect(user1).setApprovalForAll(vault.address, true);
+
+      await vault.connect(user1).deposit(stakingMembershipsUser1, tokenBalance);
+
+      const fail1 = vault
+        .connect(user1)
+        .withdrawPartial(tokenBalance, [stakingMembershipsUser1[0]]);
+      const fail2 = vault
+        .connect(user1)
+        .withdrawPartial(0, stakingMembershipsUser1);
+
+      await expect(fail1).to.revertedWith(
+        "remaining tokens less then minimumTokenAmount"
+      );
+      await expect(fail2).to.revertedWith(
+        "remaining memberships less then minimumMembershipAmount"
+      );
     });
     it("Distribute funds", async () => {
       const { vault } = await deploy();
