@@ -40,6 +40,9 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     uint256 public totalTokenShares;
     uint256 public totalMembershipShares;
 
+    uint256 public minimumTokenAmount = 4_000;
+    uint256 public minimumMembershipAmount = 1;
+
     mapping(address => UserInfo) public userInfo;
 
     IERC20 public immutable genartToken;
@@ -138,12 +141,20 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     function setWeightFactors(
         uint256 newWeightFactorTokens,
         uint256 newWeightFactorMemberships
-    ) public onlyAdmin {
+    ) external onlyAdmin {
         weightFactorTokens = newWeightFactorTokens;
         weightFactorMemberships = newWeightFactorMemberships;
     }
 
-    function collectDust(uint256 amount) public onlyGenArtAdmin {
+    function setMinTokenAndMembershipAmount(
+        uint256 minimumTokenAmount_,
+        uint256 minimumMembershipAmount_
+    ) external onlyAdmin {
+        minimumTokenAmount = minimumTokenAmount_;
+        minimumMembershipAmount = minimumMembershipAmount_;
+    }
+
+    function collectDust(uint256 amount) external onlyGenArtAdmin {
         payable(owner()).transfer(amount);
     }
 
