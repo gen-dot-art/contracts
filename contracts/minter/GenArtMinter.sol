@@ -3,19 +3,26 @@
 pragma solidity ^0.8.0;
 import "../access/GenArtAccess.sol";
 import "../app/GenArtCurated.sol";
-import "../interface/IGenArtMinter.sol";
 import "../interface/IGenArtMintAllocator.sol";
 import "../interface/IGenArtInterface.sol";
 import "../interface/IGenArtERC721.sol";
-import "../interface/IGenArtPaymentSplitterV4.sol";
+import "../interface/IGenArtPaymentSplitterV5.sol";
 import "./GenArtMinterBase.sol";
 
 /**
  * @dev GEN.ART Default Minter
  * Admin for collections deployed on {GenArtCurated}
  */
+struct FixedPriceParams {
+    uint256 startTime;
+    uint256 price;
+    address mintAllocContract;
+    uint8[3] mintAlloc;
+}
 
 contract GenArtMinter is GenArtMinterBase {
+    mapping(address => uint256) public prices;
+
     constructor(address genartInterface_, address genartCurated_)
         GenArtMinterBase(genartInterface_, genartCurated_)
     {}
@@ -23,23 +30,24 @@ contract GenArtMinter is GenArtMinterBase {
     /**
      * @dev Set pricing for collection
      * @param collection contract address of the collection
-     * @param startTime start time for minting
-     * @param price price per token
-     * @param mintAllocContract contract address of {GenArtMintAllocator}
-     * @param mintAlloc mint allocation initalization args
+     * @param data encoded pricing data
      */
-    function setPricing(
-        address collection,
-        uint256 startTime,
-        uint256 price,
-        address mintAllocContract,
-        uint8[3] memory mintAlloc
-    ) external onlyArtistOrAdmin(collection) {
-        if (collections[collection].price > 0) {
-            require(admins[_msgSender()], "only admin allowed");
-        }
-        super._setPricing(collection, startTime, price, mintAllocContract);
-        IGenArtMintAllocator(mintAllocContract).init(collection, mintAlloc);
+    function setPricing(address collection, bytes memory data)
+        external
+        override
+        onlyAdmin
+    {
+        FixedPriceParams memory params = abi.decode(data, (FixedPriceParams));
+        super._setMintParams(
+            collection,
+            params.startTime,
+            params.mintAllocContract
+        );
+        prices[collection] = params.price;
+        IGenArtMintAllocator(params.mintAllocContract).init(
+            collection,
+            params.mintAlloc
+        );
     }
 
     /**
@@ -51,8 +59,8 @@ contract GenArtMinter is GenArtMinterBase {
             "wrong amount sent"
         );
         require(
-            collections[collection].startTime != 0 &&
-                collections[collection].startTime <= block.timestamp,
+            mintParams[collection].startTime != 0 &&
+                mintParams[collection].startTime <= block.timestamp,
             "mint not started yet"
         );
     }
@@ -66,7 +74,7 @@ contract GenArtMinter is GenArtMinterBase {
         uint256 amount
     ) internal view {
         uint256 availableMints = IGenArtMintAllocator(
-            collections[collection].mintAlloc
+            mintParams[collection].mintAllocContract
         ).getAvailableMintsForMembership(collection, membershipId);
         require(availableMints >= amount, "no mints available");
         require(
@@ -88,7 +96,7 @@ contract GenArtMinter is GenArtMinterBase {
     {
         _checkMint(collection, 1);
         _checkAvailableMints(collection, membershipId, 1);
-        IGenArtMintAllocator(collections[collection].mintAlloc).update(
+        IGenArtMintAllocator(mintParams[collection].mintAllocContract).update(
             collection,
             membershipId,
             1
@@ -117,7 +125,7 @@ contract GenArtMinter is GenArtMinterBase {
         uint256 minted;
         uint256 i;
         IGenArtMintAllocator mintAlloc = IGenArtMintAllocator(
-            collections[collection].mintAlloc
+            mintParams[collection].mintAllocContract
         );
         // loop until the desired amount of tokens was minted
         while (minted < amount && i < memberships.length) {
@@ -145,10 +153,26 @@ contract GenArtMinter is GenArtMinterBase {
      * @dev Internal function to forward funds to a {GenArtPaymentSplitter}
      */
     function _splitPayment(address collection) internal {
+        uint256 value = msg.value;
         address paymentSplitter = GenArtCurated(genArtCurated)
+            .store()
             .getPaymentSplitterForCollection(collection);
-        IGenArtPaymentSplitterV4(paymentSplitter).splitPayment{
-            value: msg.value
-        }();
+        IGenArtPaymentSplitterV5(paymentSplitter).splitPayment{value: value}(
+            value
+        );
+    }
+
+    /**
+     * @dev Get price for collection
+     * @param collection contract address of the collection
+     */
+    function getPrice(address collection)
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
+        return prices[collection];
     }
 }

@@ -31,11 +31,15 @@ describe("GenArtCurated", async function () {
     );
     // const EclipseProxy = await ethers.getContractFactory('EclipseProxy');
     const GenArtERC721V4 = await ethers.getContractFactory("GenArtERC721V4");
+    const GenArtStorage = await ethers.getContractFactory("GenArtStorage");
     const GenArtPaymentSplitterFactory = await ethers.getContractFactory(
       "GenArtPaymentSplitterFactory"
     );
     const GenArtPaymentSplitter = await ethers.getContractFactory(
-      "GenArtPaymentSplitterV4"
+      "GenArtPaymentSplitterV5"
+    );
+    const GenArtPaymentSplitterV5 = await ethers.getContractFactory(
+      "GenArtPaymentSplitterV5"
     );
     const GenArtCollectionFactory = await ethers.getContractFactory(
       "GenArtCollectionFactory"
@@ -45,8 +49,9 @@ describe("GenArtCurated", async function () {
       "GenArtMintAllocator"
     );
     const paymentSplitter = await GenArtPaymentSplitter.deploy();
+    const paymentSplitterV5 = await GenArtPaymentSplitterV5.deploy();
     const paymentSplitterFactory = await GenArtPaymentSplitterFactory.deploy(
-      paymentSplitter.address
+      paymentSplitterV5.address
     );
     const collectionFactory = await GenArtCollectionFactory.deploy("uri://");
     const genartMembership = await GenArt.deploy(
@@ -57,13 +62,15 @@ describe("GenArtCurated", async function () {
       10
     );
 
+    const storage = await GenArtStorage.deploy();
     const genartInterface = await GenArtInterface.deploy(
       genartMembership.address
     );
     const mintAlloc = await GenArtMintAllocator.deploy(genartInterface.address);
     const curated = await GenArtCurated.deploy(
       collectionFactory.address,
-      paymentSplitterFactory.address
+      paymentSplitterFactory.address,
+      storage.address
     );
 
     const minter = await GenArtMinter.deploy(
@@ -84,8 +91,9 @@ describe("GenArtCurated", async function () {
     const implementation = await GenArtERC721V4.deploy();
 
     await collectionFactory.addErc721Implementation(0, implementation.address);
-    await collectionFactory.addMinter(0, minter.address);
+    await curated.addMinter(0, minter.address);
     await collectionFactory.setAdminAccess(curated.address, true);
+    await storage.setAdminAccess(curated.address, true);
     await mintAlloc.setAdminAccess(minter.address, true);
     await mintAlloc.setAdminAccess(flashMinter.address, true);
     await paymentSplitterFactory.setAdminAccess(curated.address, true);
@@ -124,49 +132,94 @@ describe("GenArtCurated", async function () {
       otherAccount,
       pool,
       other2,
+      storage,
+      genartMembership,
+      genartInterface,
     };
   }
 
   async function createCollection(
     curated,
+    store,
     factory,
-    minter,
-    mintAlloc,
+    mintAllocContract,
+    owner,
     artistAccount,
     maxSupply = 100,
-    index = 0
+    index = 0,
+    minterIndex = 0
   ) {
     const name = "Coll";
     const symbol = "SYM";
     const erc721Index = 0;
-    const pricingMode = 0;
-    const tx = await curated.createCollection(
-      artistAccount.address,
-      name,
-      symbol,
-      "test",
-      true,
-      maxSupply,
-      erc721Index,
-      pricingMode
-    );
-    const artist = await curated.getArtist(artistAccount.address);
-    const info = await curated.getCollectionInfo(artist.collections[index]);
+    const pricingMode = minterIndex;
+    const paymentSplitterIndex = 0;
     const startTime = (await time.latest()) + 60 * 60 * 10;
-    try {
-      await minter
-        .connect(artistAccount)
-        .setPricing(
-          info.collection.contractAddress,
+
+    const pricingData = ethers.utils.defaultAbiCoder.encode(
+      [
+        {
+          components: [
+            {
+              internalType: "uint256",
+              name: "startTime",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "price",
+              type: "uint256",
+            },
+            {
+              internalType: "address",
+              name: "mintAllocContract",
+              type: "address",
+            },
+            {
+              internalType: "uint8[3]",
+              name: "mintAlloc",
+              type: "uint8[3]",
+            },
+          ],
+          name: "params",
+          type: "tuple",
+        },
+      ],
+      [
+        {
+          artist: artistAccount.address,
           startTime,
-          ONE_GWEI,
-          mintAlloc.address,
-          [1, 2, 0]
-        );
-    } catch (err) {
-      console.log(err);
-      throw err;
-    }
+          price: ONE_GWEI,
+          mintAllocContract: mintAllocContract.address,
+          mintAlloc: [1, 1, 0],
+        },
+      ]
+    );
+
+    const calldata = curated.interface.encodeFunctionData("createCollection", [
+      {
+        artist: artistAccount.address,
+        name: name,
+        symbol: symbol,
+        script: "test",
+        collectionType: 0,
+        maxSupply: maxSupply,
+        erc721Index: erc721Index,
+        pricingMode: pricingMode,
+        pricingData: pricingData,
+        paymentSplitterIndex,
+        payeesMint: [owner.address, artistAccount.address],
+        payeesRoyalties: [owner.address, artistAccount.address],
+        sharesMint: [500, 500],
+        sharesRoyalties: [500, 500],
+      },
+    ]);
+    const tx = await owner.sendTransaction({
+      to: curated.address,
+      data: calldata,
+    });
+    const artist = await store.getArtist(artistAccount.address);
+    const info = await curated.getCollectionInfo(artist.collections[index]);
 
     await expect(tx).to.emit(factory, "Created");
 
@@ -177,41 +230,35 @@ describe("GenArtCurated", async function () {
     const {
       curated,
       owner,
-      minter,
       artistAccount,
       factory,
       mintAlloc,
       flashMinter,
       otherAccount,
       whitelistMinter,
+      storage,
     } = deployment;
-    await curated.createArtist(
-      artistAccount.address,
-      [owner.address, artistAccount.address],
-      [owner.address, artistAccount.address],
-      [500, 500],
-      [500, 500]
-    );
+
     const { info, startTime, artist } = await createCollection(
       curated,
+      storage,
       factory,
-      minter,
       mintAlloc,
+      owner,
       artistAccount,
       100
     );
-    await flashMinter.setPricing(
+    await flashMinter["setPricing(address,uint256,uint256,address)"](
       info.collection.contractAddress,
       startTime,
       ONE_GWEI,
       mintAlloc.address
     );
-    await whitelistMinter.setPricing(
-      info.collection.contractAddress,
-      startTime,
-      ONE_GWEI,
-      [otherAccount.address]
-    );
+    await whitelistMinter[
+      "setPricing(address,uint256,uint256,address,address[])"
+    ](info.collection.contractAddress, startTime, ONE_GWEI, mintAlloc.address, [
+      otherAccount.address,
+    ]);
     await time.increaseTo(startTime + 1000);
     const GenArtErc721 = await ethers.getContractFactory("GenArtERC721V4");
     const collection = await GenArtErc721.attach(
@@ -251,16 +298,22 @@ describe("GenArtCurated", async function () {
       );
     });
     it("should update script", async () => {
-      const { curated, artistAccount, collection, otherAccount, artist } =
-        await init();
+      const {
+        curated,
+        artistAccount,
+        collection,
+        otherAccount,
+        artist,
+        storage,
+      } = await init();
 
-      await curated
+      await storage
         .connect(artistAccount)
         .updateScript(collection.address, "artist");
       const info = await curated.getCollectionInfo(artist.collections[0]);
       expect(info.collection.script).to.equal("artist");
-      await curated.updateScript(collection.address, "admin");
-      const fail = curated
+      await storage.updateScript(collection.address, "admin");
+      const fail = storage
         .connect(otherAccount)
         .updateScript(collection.address, "fail");
       const info2 = await curated.getCollectionInfo(artist.collections[0]);
@@ -402,13 +455,22 @@ describe("GenArtCurated", async function () {
       expect(mintFail).to.revertedWith("no mints available");
     });
     it("should fail on mint sell out", async () => {
-      const { minter, other2, factory, mintAlloc, curated, artistAccount } =
-        await init();
+      const {
+        minter,
+        owner,
+        storage,
+        other2,
+        factory,
+        mintAlloc,
+        curated,
+        artistAccount,
+      } = await init();
       const { info, startTime } = await createCollection(
         curated,
+        storage,
         factory,
-        minter,
         mintAlloc,
+        owner,
         artistAccount,
         3,
         1
@@ -486,20 +548,20 @@ describe("GenArtCurated", async function () {
   });
   describe("PaymentSplitter", async () => {
     it("should split payment eth", async () => {
-      const { artist, otherAccount, artistAccount, owner } = await init();
+      const { otherAccount, artistAccount, owner, info } = await init();
 
       const GenArtPaymentSplitter = await ethers.getContractFactory(
-        "GenArtPaymentSplitterV4"
+        "GenArtPaymentSplitterV5"
       );
       const paymentSplitter = await GenArtPaymentSplitter.attach(
-        artist.paymentSplitter
+        info.collection.paymentSplitter
       );
       await paymentSplitter.setAdminAccess(otherAccount.address, true);
       const ownerBalanceOld = await web3.eth.getBalance(owner.address);
       const artistBalanceOld = await web3.eth.getBalance(artistAccount.address);
       await paymentSplitter
         .connect(otherAccount)
-        .splitPayment({ value: ONE_GWEI });
+        .splitPayment(ONE_GWEI, { value: ONE_GWEI });
       await paymentSplitter
         .connect(otherAccount)
         .release(artistAccount.address);
@@ -512,15 +574,23 @@ describe("GenArtCurated", async function () {
       expect(ownerBalanceNew.toString()).to.equal(
         BigNumber.from(ownerBalanceOld).add(ONE_GWEI / 2)
       );
+      // await expect(tx).to.changeEtherBalances(
+      //   [artistAccount, owner],
+      //   [
+      //     -BigNumber.from(ONE_GWEI).add(
+      //       BigNumber.from(ONE_GWEI).mul(2).mul(875).div(1000)
+      //     ),
+      //     BigNumber.from(ONE_GWEI).mul(1).mul(125).div(1000),
+      //   ])
     });
     it("should split payment token", async () => {
-      const { artist, otherAccount, artistAccount, owner } = await init();
+      const { info, otherAccount, artistAccount, owner } = await init();
 
       const GenArtPaymentSplitter = await ethers.getContractFactory(
-        "GenArtPaymentSplitterV4"
+        "GenArtPaymentSplitterV5"
       );
       const paymentSplitter = await GenArtPaymentSplitter.attach(
-        artist.paymentSplitter
+        info.collection.paymentSplitter
       );
       const tokens = "100000000";
       const GenArtGovToken = await ethers.getContractFactory("GenArtGovToken");
@@ -539,13 +609,13 @@ describe("GenArtCurated", async function () {
       expect(balanceOwner).equals(balanceArtist);
     });
     it("should fail calling initializer on payment splitter", async () => {
-      const { artist, otherAccount, owner } = await init();
+      const { info, otherAccount, owner } = await init();
 
       const GenArtPaymentSplitter = await ethers.getContractFactory(
-        "GenArtPaymentSplitterV4"
+        "GenArtPaymentSplitterV5"
       );
       const paymentSplitter = await GenArtPaymentSplitter.attach(
-        artist.paymentSplitter
+        info.collection.paymentSplitter
       );
       const fail = paymentSplitter.initialize(
         otherAccount.address,
@@ -560,13 +630,13 @@ describe("GenArtCurated", async function () {
       );
     });
     it("should fail if no funds available for account", async () => {
-      const { artist, otherAccount } = await init();
+      const { info, otherAccount } = await init();
 
       const GenArtPaymentSplitter = await ethers.getContractFactory(
-        "GenArtPaymentSplitterV4"
+        "GenArtPaymentSplitterV5"
       );
       const paymentSplitter = await GenArtPaymentSplitter.attach(
-        artist.paymentSplitter
+        info.collection.paymentSplitter
       );
       const fail = paymentSplitter
         .connect(otherAccount)
@@ -575,13 +645,13 @@ describe("GenArtCurated", async function () {
       await expect(fail).to.revertedWith("no funds to release");
     });
     it("should fail if unauthorized account updates payee", async () => {
-      const { artist, otherAccount } = await init();
+      const { info, otherAccount } = await init();
 
       const GenArtPaymentSplitter = await ethers.getContractFactory(
-        "GenArtPaymentSplitterV4"
+        "GenArtPaymentSplitterV5"
       );
       const paymentSplitter = await GenArtPaymentSplitter.attach(
-        artist.paymentSplitter
+        info.collection.paymentSplitter
       );
       const fail = paymentSplitter
         .connect(otherAccount)
@@ -594,13 +664,13 @@ describe("GenArtCurated", async function () {
       await expect(fail2).to.revertedWith("sender is not current payee");
     });
     it("should update payee", async () => {
-      const { artist, otherAccount, artistAccount } = await init();
+      const { info, otherAccount, artistAccount } = await init();
 
       const GenArtPaymentSplitter = await ethers.getContractFactory(
-        "GenArtPaymentSplitterV4"
+        "GenArtPaymentSplitterV5"
       );
       const paymentSplitter = await GenArtPaymentSplitter.attach(
-        artist.paymentSplitter
+        info.collection.paymentSplitter
       );
       await paymentSplitter
         .connect(artistAccount)
@@ -608,7 +678,7 @@ describe("GenArtCurated", async function () {
 
       const artistBalanceOld = await web3.eth.getBalance(otherAccount.address);
 
-      await paymentSplitter.splitPayment({ value: ONE_GWEI });
+      await paymentSplitter.splitPayment(ONE_GWEI, { value: ONE_GWEI });
 
       await paymentSplitter
         .connect(artistAccount)

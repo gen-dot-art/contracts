@@ -13,7 +13,7 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
         address[] payees;
         uint256[] shares;
     }
-    address public implementation;
+    mapping(uint8 => address) public implementations;
 
     event Created(
         address contractAddress,
@@ -25,7 +25,7 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
     );
 
     constructor(address implementation_) GenArtAccess() {
-        implementation = implementation_;
+        implementations[0] = implementation_;
     }
 
     /**
@@ -55,6 +55,7 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
     function clone(
         address owner,
         address artist,
+        uint8 implementation,
         address[] memory payeesMint,
         address[] memory payeesRoyalties,
         uint256[] memory sharesMint,
@@ -67,7 +68,7 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
             sharesMint,
             sharesRoyalties
         );
-        address instance = Clones.clone(implementation);
+        address instance = Clones.clone(implementations[implementation]);
         Address.functionCall(instance, initializer);
         emit Created(
             instance,
@@ -83,7 +84,10 @@ contract GenArtPaymentSplitterFactory is GenArtAccess {
     /**
      * @dev Set the {GenArtPaymentSplitter} implementation
      */
-    function setImplementation(address implementation_) external onlyAdmin {
-        implementation = implementation_;
+    function setImplementation(uint8 index, address implementation_)
+        external
+        onlyAdmin
+    {
+        implementations[index] = implementation_;
     }
 }

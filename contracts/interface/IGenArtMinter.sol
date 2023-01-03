@@ -9,7 +9,7 @@ interface IGenArtMinter {
 
     function getPrice(address collection) external view returns (uint256);
 
-    function addPricing(address collection, address artist) external;
+    function setPricing(address collection, bytes memory data) external;
 
     function getAvailableMintsForAccount(address collection, address account)
         external
