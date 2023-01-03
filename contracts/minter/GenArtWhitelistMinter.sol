@@ -3,22 +3,27 @@
 pragma solidity ^0.8.0;
 import "../access/GenArtAccess.sol";
 import "../app/GenArtCurated.sol";
-import "../interface/IGenArtMinter.sol";
 import "../interface/IGenArtMintAllocator.sol";
 import "../interface/IGenArtInterface.sol";
 import "../interface/IGenArtERC721.sol";
-import "../interface/IGenArtPaymentSplitterV4.sol";
+import "../interface/IGenArtPaymentSplitterV5.sol";
 import "./GenArtMinterBase.sol";
 
 /**
  * @dev GEN.ART Whitelist Minter
- * Admin for collections deployed on {GenArtCurated}
+ * Admin for mintParams deployed on {GenArtCurated}
  */
 
 contract GenArtWhitelistMinter is GenArtMinterBase {
+    struct WhitelistParams {
+        uint256 startTime;
+        uint256 price;
+        address mintAllocContract;
+        address[] whitelist;
+    }
     address public payoutAddress;
     uint256 public whitelistFee = 0;
-
+    mapping(address => uint256) public prices;
     mapping(address => mapping(address => bool)) public whitelists;
 
     constructor(
@@ -30,11 +35,23 @@ contract GenArtWhitelistMinter is GenArtMinterBase {
     }
 
     /**
-     * @dev Not need
-     * Note DO NOT USE
+     * @dev Set pricing for collection
+     * @param collection contract address of the collection
+     * @param data encoded pricing data
      */
-    function addPricing(address, address) external override onlyAdmin {
-        revert("not impelmented");
+    function setPricing(address collection, bytes memory data)
+        external
+        override
+        onlyAdmin
+    {
+        WhitelistParams memory params = abi.decode(data, (WhitelistParams));
+        _setPricing(
+            collection,
+            params.startTime,
+            params.price,
+            params.mintAllocContract,
+            params.whitelist
+        );
     }
 
     /**
@@ -42,15 +59,36 @@ contract GenArtWhitelistMinter is GenArtMinterBase {
      * @param collection contract address of the collection
      * @param startTime start time for minting
      * @param price price per token
+     * @param mintAllocContract mint allocator contract address
      * @param whitelist list of whitelisted addresses
      */
     function setPricing(
         address collection,
         uint256 startTime,
         uint256 price,
+        address mintAllocContract,
         address[] memory whitelist
     ) external onlyAdmin {
-        super._setPricing(collection, startTime, price, address(0));
+        _setPricing(collection, startTime, price, mintAllocContract, whitelist);
+    }
+
+    /**
+     * @dev Internal helper method to set pricing for collection
+     * @param collection contract address of the collection
+     * @param startTime start time for minting
+     * @param price price per token
+     * @param mintAllocContract mint allocator contract address
+     * @param whitelist list of whitelisted addresses
+     */
+    function _setPricing(
+        address collection,
+        uint256 startTime,
+        uint256 price,
+        address mintAllocContract,
+        address[] memory whitelist
+    ) internal {
+        super._setMintParams(collection, startTime, mintAllocContract);
+        prices[collection] = price;
         for (uint256 i; i < whitelist.length; i++) {
             whitelists[collection][whitelist[i]] = true;
         }
@@ -66,7 +104,7 @@ contract GenArtWhitelistMinter is GenArtMinterBase {
         override
         returns (uint256)
     {
-        return (collections[collection].price * (1000 + whitelistFee)) / 1000;
+        return (prices[collection] * (1000 + whitelistFee)) / 1000;
     }
 
     /**
@@ -81,11 +119,11 @@ contract GenArtWhitelistMinter is GenArtMinterBase {
         require(availableMint, "no mints available");
 
         require(
-            collections[collection].startTime != 0,
+            mintParams[collection].startTime != 0,
             "whitelist mint not started yet"
         );
         require(
-            collections[collection].startTime <= block.timestamp,
+            mintParams[collection].startTime <= block.timestamp,
             "mint not started yet"
         );
     }
@@ -123,10 +161,14 @@ contract GenArtWhitelistMinter is GenArtMinterBase {
      * @dev Internal function to forward funds to a {GenArtPaymentSplitter}
      */
     function _splitPayment(address collection) internal {
+        uint256 value = msg.value;
         address paymentSplitter = GenArtCurated(genArtCurated)
+            .store()
             .getPaymentSplitterForCollection(collection);
         uint256 amount = (msg.value / (1000 + whitelistFee)) * 1000;
-        IGenArtPaymentSplitterV4(paymentSplitter).splitPayment{value: amount}();
+        IGenArtPaymentSplitterV5(paymentSplitter).splitPayment{value: amount}(
+            value
+        );
     }
 
     /**
@@ -164,7 +206,7 @@ contract GenArtWhitelistMinter is GenArtMinterBase {
      */
     function getAvailableMintsForMembership(address, uint256)
         external
-        view
+        pure
         override
         returns (uint256)
     {

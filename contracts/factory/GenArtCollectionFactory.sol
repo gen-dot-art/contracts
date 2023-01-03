@@ -3,9 +3,10 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "../access/GenArtAccess.sol";
+import "../interface/IGenArtMinter.sol";
 
 /**
- * GEN.ART ERC721 contract factory
+ * GenArt ERC721 contract factory
  */
 
 struct CollectionParams {
@@ -13,20 +14,25 @@ struct CollectionParams {
     string name;
     string symbol;
     string script;
-    bool hasOnChainScript;
+    uint8 collectionType;
     uint256 maxSupply;
     uint8 erc721Index;
-    uint8 minterIndex;
+    address minter;
     address paymentSplitter;
+}
+struct CollectionType {
+    string name;
+    uint256 prefix;
+    uint256 lastId;
 }
 
 contract GenArtCollectionFactory is GenArtAccess {
-    mapping(uint8 => address) public minters;
     mapping(uint8 => address) public erc721Implementations;
+    mapping(uint8 => CollectionType) public collectionTypes;
+
     address public paymentSplitterImplementation;
     string public uri;
-    uint256 public lastCollectionIdScript = 30002;
-    uint256 public lastCollectionIdOther = 20003;
+
     event Created(
         uint256 id,
         address contractAddress,
@@ -41,20 +47,19 @@ contract GenArtCollectionFactory is GenArtAccess {
 
     constructor(string memory uri_) GenArtAccess() {
         uri = uri_;
+        collectionTypes[0] = CollectionType("js", 30003, 0);
     }
 
     /**
      * @dev Get next collection id
      */
-    function _getNextCollectionId(bool isScript) internal returns (uint256) {
-        uint256 id;
-        if (isScript) {
-            id = lastCollectionIdScript + 1;
-            lastCollectionIdScript++;
-        } else {
-            id = lastCollectionIdOther + 1;
-            lastCollectionIdOther++;
-        }
+    function _getNextCollectionId(uint8 collectioType)
+        internal
+        returns (uint256)
+    {
+        CollectionType memory obj = collectionTypes[collectioType];
+        uint256 id = obj.prefix + obj.lastId + 1;
+        collectionTypes[collectioType].lastId += 1;
         return id;
     }
 
@@ -94,18 +99,16 @@ contract GenArtCollectionFactory is GenArtAccess {
         onlyAdmin
         returns (address, uint256)
     {
-        address minter = minters[params.minterIndex];
         address implementation = erc721Implementations[params.erc721Index];
-        require(minter != address(0), "invalid minterIndex");
         require(implementation != address(0), "invalid erc721Index");
-        uint256 id = _getNextCollectionId(params.hasOnChainScript);
+        uint256 id = _getNextCollectionId(params.collectionType);
         bytes memory initializer = _createInitializer(
             id,
             params.artist,
             params.name,
             params.symbol,
             params.maxSupply,
-            minter,
+            params.minter,
             params.paymentSplitter
         );
         address instance = Clones.clone(implementation);
@@ -118,7 +121,7 @@ contract GenArtCollectionFactory is GenArtAccess {
             params.symbol,
             params.script,
             params.maxSupply,
-            minter,
+            params.minter,
             implementation
         );
         return (instance, id);
@@ -135,10 +138,15 @@ contract GenArtCollectionFactory is GenArtAccess {
     }
 
     /**
-     * @dev Add a minter contract and map by index
+     * @dev Add a collectionType and map by index
      */
-    function addMinter(uint8 index, address minter) external onlyAdmin {
-        minters[index] = minter;
+    function addCollectionType(
+        uint8 index,
+        string memory name,
+        uint256 prefix,
+        uint256 lastId
+    ) external onlyAdmin {
+        collectionTypes[index] = CollectionType(name, prefix, lastId);
     }
 
     /**

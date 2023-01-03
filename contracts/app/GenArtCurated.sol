@@ -2,50 +2,62 @@
 
 pragma solidity ^0.8.0;
 import "../access/GenArtAccess.sol";
-import "../factory/GenArtCollectionFactory.sol";
-import "../factory/GenArtPaymentSplitterFactory.sol";
+import "../storage/GenArtStorage.sol";
 import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtMinter.sol";
+import "../factory/GenArtCollectionFactory.sol";
+import "../factory/GenArtPaymentSplitterFactory.sol";
 
 /**
  * @dev GEN.ART Curated
  * Admin of {GenArtCollectionFactory} and {GenArtPaymentSplitterFactory}
  */
 
+struct CreateCollectionParams {
+    address artist;
+    string name;
+    string symbol;
+    string script;
+    uint8 collectionType;
+    uint256 maxSupply;
+    uint8 erc721Index;
+    uint8 pricingMode;
+    bytes pricingData;
+    uint8 paymentSplitterIndex;
+    address[] payeesMint;
+    address[] payeesRoyalties;
+    uint256[] sharesMint;
+    uint256[] sharesRoyalties;
+}
+struct PricingParams {
+    uint8 mode;
+    bytes data;
+}
+
+struct CollectionInfo {
+    string name;
+    string symbol;
+    address minter;
+    Collection collection;
+    Artist artist;
+}
+
 contract GenArtCurated is GenArtAccess {
-    struct Collection {
-        uint256 id;
-        address artist;
-        address contractAddress;
-        uint256 maxSupply;
-        string script;
-    }
-
-    struct Artist {
-        address wallet;
-        address[] collections;
-        address paymentSplitter;
-    }
-
-    struct CollectionInfo {
-        string name;
-        string symbol;
-        address minter;
-        Collection collection;
-        Artist artist;
-    }
-
-    mapping(address => Collection) public collections;
-    mapping(address => Artist) public artists;
-
     address public collectionFactory;
     address public paymentSplitterFactory;
+    GenArtStorage public store;
+    mapping(uint8 => address) public minters;
 
     event ScriptUpdated(address collection, string script);
 
-    constructor(address collectionFactory_, address paymentSplitterFactory_) {
+    constructor(
+        address collectionFactory_,
+        address paymentSplitterFactory_,
+        address store_
+    ) {
         collectionFactory = collectionFactory_;
         paymentSplitterFactory = paymentSplitterFactory_;
+        store = GenArtStorage(payable(store_));
     }
 
     /**
@@ -55,118 +67,115 @@ contract GenArtCurated is GenArtAccess {
         internal
         returns (address instance, uint256 id)
     {
-        (instance, id) = GenArtCollectionFactory(collectionFactory)
-            .cloneCollectionContract(params);
-        collections[instance] = Collection(
-            id,
-            params.artist,
-            instance,
-            params.maxSupply,
-            params.script
-        );
+        return
+            GenArtCollectionFactory(collectionFactory).cloneCollectionContract(
+                params
+            );
     }
 
     /**
      * @dev Internal functtion to create the collection and risgister to minter
      */
-    function _createCollection(CollectionParams memory params)
-        internal
-        returns (address instance, uint256 id)
-    {
+    function _createCollection(
+        CollectionParams memory params,
+        uint8 pricingMode,
+        bytes memory pricingData
+    ) internal returns (address instance, uint256 id) {
         (instance, id) = _cloneCollection(params);
-        address minter = GenArtCollectionFactory(collectionFactory).minters(
-            params.minterIndex
+        IGenArtMinter(minters[pricingMode]).setPricing(instance, pricingData);
+        store.setCollection(
+            Collection(
+                id,
+                params.artist,
+                instance,
+                params.maxSupply,
+                params.script,
+                params.paymentSplitter
+            )
         );
-        IGenArtMinter(minter).addPricing(instance, params.artist);
     }
 
     /**
      * @dev Clones an ERC721 implementation contract
-     * @param artist address of artist
-     * @param name name of collection
-     * @param symbol ERC721 symbol for collection
-     * @param script single html as string
-     * @param maxSupply max token supply
-     * @param erc721Index ERC721 implementation index
-     * @param minterIndex minter index
-     */
-    function createCollection(
-        address artist,
-        string memory name,
-        string memory symbol,
-        string memory script,
-        bool hasOnChainScript,
-        uint256 maxSupply,
-        uint8 erc721Index,
-        uint8 minterIndex
-    ) external onlyAdmin {
-        Artist storage artist_ = artists[artist];
-        require(artist_.wallet != address(0), "artist does not exist");
-
-        (address instance, ) = _createCollection(
-            CollectionParams(
-                artist,
-                name,
-                symbol,
-                script,
-                hasOnChainScript,
-                maxSupply,
-                erc721Index,
-                minterIndex,
-                artists[artist].paymentSplitter
-            )
-        );
-        artist_.collections.push(instance);
-    }
-
-    /**
-     * @dev Get all available mints for account
-     * @param artist address of artist
-     * @param payeesMint address list of payees of mint proceeds
-     * @param payeesRoyalties address list of payees of royalties
-     * @param sharesMint list of shares for mint proceeds
-     * @param sharesRoyalties list of shares for royalties
+     * @param params params
+     * @dev artist address of artist
+     * @dev name name of collection
+     * @dev symbol ERC721 symbol for collection
+     * @dev script single html as string
+     * @dev maxSupply max token supply
+     * @dev erc721Index ERC721 implementation index
+     * @dev pricingMode minter index
+     * @dev pricingData calldata for `setPricing` function
+     * @dev payeesMint address list of payees of mint proceeds
+     * @dev payeesRoyalties address list of payees of royalties
+     * @dev sharesMint list of shares for mint proceeds
+     * @dev sharesRoyalties list of shares for royalties
      * Note payee and shares indices must be in respective order
      */
-    function createArtist(
-        address artist,
-        address[] memory payeesMint,
-        address[] memory payeesRoyalties,
-        uint256[] memory sharesMint,
-        uint256[] memory sharesRoyalties
-    ) external onlyAdmin {
-        require(artists[artist].wallet == address(0), "already exists");
+    function createCollection(CreateCollectionParams calldata params)
+        external
+        onlyAdmin
+    {
+        address artistAddress = params.artist;
+        address minter = minters[params.pricingMode];
+        _createArtist(artistAddress);
         address paymentSplitter = GenArtPaymentSplitterFactory(
             paymentSplitterFactory
         ).clone(
                 genartAdmin,
-                artist,
-                payeesMint,
-                payeesRoyalties,
-                sharesMint,
-                sharesRoyalties
+                artistAddress,
+                params.paymentSplitterIndex,
+                params.payeesMint,
+                params.payeesRoyalties,
+                params.sharesMint,
+                params.sharesRoyalties
             );
+        _createCollection(
+            CollectionParams(
+                artistAddress,
+                params.name,
+                params.symbol,
+                params.script,
+                params.collectionType,
+                params.maxSupply,
+                params.erc721Index,
+                minter,
+                paymentSplitter
+            ),
+            params.pricingMode,
+            params.pricingData
+        );
+    }
+
+    /**
+     * @dev Internal helper method to create artist
+     * @param artist address of artist
+     */
+    function _createArtist(address artist) internal {
+        if (store.getArtist(artist).wallet != address(0)) return;
         address[] memory collections_;
-        artists[artist] = Artist(artist, collections_, paymentSplitter);
+        store.setArtist(Artist(artist, collections_));
     }
 
     /**
-     * @dev Helper function to get {PaymentSplitter} of artist
+     * @dev Set the {GenArtCollectionFactory} contract address
      */
-    function getPaymentSplitterForCollection(address collection)
-        external
-        view
-        returns (address)
-    {
-        return artists[collections[collection].artist].paymentSplitter;
+    function setCollectionFactory(address factory) external onlyAdmin {
+        collectionFactory = factory;
     }
 
     /**
-     * @dev Get artist struct
-     * @param artist adress of artist
+     * @dev Set the {GenArtPaymentSplitterFactory} contract address
      */
-    function getArtist(address artist) external view returns (Artist memory) {
-        return artists[artist];
+    function setPaymentSplitterFactory(address factory) external onlyAdmin {
+        paymentSplitterFactory = factory;
+    }
+
+    /**
+     * @dev Add a minter contract and map by index
+     */
+    function addMinter(uint8 index, address minter) external onlyAdmin {
+        minters[index] = minter;
     }
 
     /**
@@ -187,45 +196,14 @@ contract GenArtCurated is GenArtAccess {
             ,
 
         ) = IGenArtERC721(collection).getInfo();
-        Artist memory artist_ = artists[artist];
+        Artist memory artist_ = store.getArtist(artist);
 
         info = CollectionInfo(
             name,
             symbol,
             minter,
-            collections[collection],
+            store.getCollection(collection),
             artist_
         );
-    }
-
-    /**
-     * @dev Set the {GenArtCollectionFactory} contract address
-     */
-    function setCollectionFactory(address factory) external onlyAdmin {
-        collectionFactory = factory;
-    }
-
-    /**
-     * @dev Set the {GenArtPaymentSplitterFactory} contract address
-     */
-    function setPaymentSplitterFactory(address factory) external onlyAdmin {
-        paymentSplitterFactory = factory;
-    }
-
-    /**
-     * @dev Update script of collection
-     * @param collection contract address of the collection
-     * @param script single html as string
-     */
-    function updateScript(address collection, string memory script) external {
-        address sender = _msgSender();
-        require(
-            collections[collection].artist == sender ||
-                admins[sender] ||
-                owner() == sender,
-            "not allowed"
-        );
-        collections[collection].script = script;
-        emit ScriptUpdated(collection, script);
     }
 }

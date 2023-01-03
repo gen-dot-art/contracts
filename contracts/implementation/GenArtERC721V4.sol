@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721Enumer
 import "@openzeppelin/contracts-upgradeable/interfaces/IERC2981Upgradeable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "../access/GenArtAccessUpgradable.sol";
-import "../interface/IGenArtPaymentSplitterV4.sol";
+import "../interface/IGenArtPaymentSplitterV5.sol";
 import "../interface/IGenArtERC721.sol";
 
 /**
@@ -132,7 +132,7 @@ contract GenArtERC721V4 is
     {
         return (
             _royaltyReceiver,
-            ((IGenArtPaymentSplitterV4(_royaltyReceiver).getTotalShares(1)) *
+            ((IGenArtPaymentSplitterV5(_royaltyReceiver).getTotalShares(1)) *
                 salePrice_) / 10_000
         );
     }
