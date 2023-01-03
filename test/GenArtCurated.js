@@ -111,10 +111,9 @@ describe("GenArtCurated", async function () {
     const implementation = await GenArtERC721V4.deploy();
 
     await collectionFactory.addErc721Implementation(0, implementation.address);
-    await collectionFactory.addMinter(0, minter.address);
-    await collectionFactory.addMinter(1, minterLoyalty.address);
-    await curated.addMinter(0, minter.address);
     await collectionFactory.setAdminAccess(curated.address, true);
+    await curated.addMinter(0, minter.address);
+    await curated.addMinter(1, minterLoyalty.address);
     await storage.setAdminAccess(curated.address, true);
     await mintAlloc.setAdminAccess(minter.address, true);
     await mintAlloc.setAdminAccess(flashMinter.address, true);
@@ -168,11 +167,11 @@ describe("GenArtCurated", async function () {
       pool,
       other2,
       vault,
+      storage,
       token,
       genartMembership,
       genartInterface,
       user3,
-      storage,
     };
   }
 
@@ -741,6 +740,8 @@ describe("GenArtCurated", async function () {
         genartMembership,
         minterLoyalty,
         user3,
+        storage,
+        owner,
       } = await init();
       const tokenBalance = await token.balanceOf(other2.address);
       const tokenBalance2 = await token.balanceOf(user3.address);
@@ -769,9 +770,10 @@ describe("GenArtCurated", async function () {
       await vault.connect(user3).deposit(membershipsUser2, tokenBalance2);
       const { info, startTime } = await createCollection(
         curated,
+        storage,
         factory,
-        minterLoyalty,
         mintAlloc,
+        owner,
         artistAccount,
         4,
         1,
@@ -811,26 +813,24 @@ describe("GenArtCurated", async function () {
     });
     it("should distribute funds", async () => {
       const { minterLoyalty, owner, vault } = await init();
-      const tx = await owner.sendTransaction({
+      await owner.sendTransaction({
         value: ONE_GWEI,
         to: minterLoyalty.address,
       });
-
+      const tx = await minterLoyalty.distributeLoyalties();
       await expect(tx).to.changeEtherBalances(
         [vault],
         [BigNumber.from(ONE_GWEI)]
       );
 
-      const fail = owner.sendTransaction({
-        value: ONE_GWEI,
-        to: minterLoyalty.address,
-      });
-      await expect(fail).to.revertedWith("distribution delayed");
-      await mine(260 * 24 * 14);
       await owner.sendTransaction({
         value: ONE_GWEI,
         to: minterLoyalty.address,
       });
+      const fail = minterLoyalty.distributeLoyalties();
+      await expect(fail).to.revertedWith("distribution delayed");
+      await mine(260 * 24 * 14);
+      await minterLoyalty.distributeLoyalties();
     });
   });
 });
