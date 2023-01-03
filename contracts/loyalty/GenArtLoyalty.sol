@@ -11,7 +11,7 @@ abstract contract GenArtLoyalty is GenArtAccess {
     uint256 constant DOMINATOR = 1000;
     uint256 public baseRebatePerMintBps = 125;
     uint256 public rebateWindowSec = 60 * 60 * 24 * 5; // 5 days
-    uint256 public loyaltyDistributionBlocks = 260 * 24 * 14; // 14 days
+    uint256 public loyaltyDistributionBlocks = 260 * 24 * 30; // 30 days
     uint256 public distributionDelayBlock = 260 * 24 * 14; // 14 days
     uint256 public lastDistributionBlock;
 
@@ -73,7 +73,5 @@ abstract contract GenArtLoyalty is GenArtAccess {
         distributionDelayBlock = blocks;
     }
 
-    receive() external payable {
-        distributeLoyalties();
-    }
+    receive() external payable {}
 }
