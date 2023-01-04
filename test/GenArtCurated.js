@@ -728,7 +728,7 @@ describe("GenArtCurated", async function () {
     });
   });
   describe("Loyalty", async () => {
-    it("should receive loyalty refund", async () => {
+    it("should receive loyalty refund and lock assets", async () => {
       const {
         other2,
         factory,
@@ -797,6 +797,13 @@ describe("GenArtCurated", async function () {
         ]
       );
 
+      const withdrawPart = vault
+        .connect(other2)
+        .withdrawPartial(0, [stakingMembershipsUser1[0]]);
+      const withdraw = vault.connect(other2).withdraw();
+      await expect(withdrawPart).to.revertedWith("assets locked");
+      await expect(withdraw).to.revertedWith("assets locked");
+
       await time.increaseTo(startTime + 1000 + 60 * 60 * 24 * 5);
       const tx2 = await minterLoyalty
         .connect(user3)
@@ -810,6 +817,10 @@ describe("GenArtCurated", async function () {
           BigNumber.from(ONE_GWEI).mul(1).mul(125).div(1000),
         ]
       );
+      await vault
+        .connect(other2)
+        .withdrawPartial(0, [stakingMembershipsUser1[0]]);
+      await vault.connect(other2).withdraw();
     });
     it("should distribute funds", async () => {
       const { minterLoyalty, owner, vault } = await init();

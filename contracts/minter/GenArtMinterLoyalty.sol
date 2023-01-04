@@ -111,7 +111,7 @@ contract GenArtMinterLoyalty is
         override
         nonReentrant
     {
-        address minter = _msgSender();
+        address user = _msgSender();
         bool isVaulted = _checkAvailableMints(collection, membershipId, 1);
         uint256 price = _checkMint(collection, 1);
 
@@ -120,8 +120,8 @@ contract GenArtMinterLoyalty is
             membershipId,
             1
         );
-        IGenArtERC721(collection).mint(minter, membershipId);
-        _splitPayment(collection, minter, price, isVaulted ? 1 : 0, 1);
+        IGenArtERC721(collection).mint(user, membershipId);
+        _splitPayment(collection, user, price, isVaulted ? 1 : 0, 1);
     }
 
     /**
@@ -138,10 +138,10 @@ contract GenArtMinterLoyalty is
         // get all available mints for sender
         uint256 price = _checkMint(collection, amount);
 
-        address minter = _msgSender();
+        address user = _msgSender();
         IGenArtInterfaceV4 iface = IGenArtInterfaceV4(genartInterface);
         // get all memberships for sender
-        uint256[] memory memberships = iface.getMembershipsOf(minter);
+        uint256[] memory memberships = iface.getMembershipsOf(user);
         uint256 minted;
         uint256 vaultedMints;
         uint256 i;
@@ -159,7 +159,7 @@ contract GenArtMinterLoyalty is
             // mint tokens with membership and stop if desired amount reached
             uint256 j;
             for (j = 0; j < mints && minted < amount; j++) {
-                IGenArtERC721(collection).mint(minter, membershipId);
+                IGenArtERC721(collection).mint(user, membershipId);
                 minted++;
                 if (iface.isVaulted(membershipId)) vaultedMints++;
             }
@@ -168,7 +168,7 @@ contract GenArtMinterLoyalty is
             i++;
         }
         require(minted > 0, "no mints available");
-        _splitPayment(collection, minter, price, vaultedMints, minted);
+        _splitPayment(collection, user, price, vaultedMints, minted);
     }
 
     /**
@@ -176,7 +176,7 @@ contract GenArtMinterLoyalty is
      */
     function _splitPayment(
         address collection,
-        address minter,
+        address user,
         uint256 price,
         uint256 vaultedMints,
         uint256 totalMints
@@ -189,13 +189,11 @@ contract GenArtMinterLoyalty is
         IGenArtPaymentSplitterV5(paymentSplitter).splitPayment{
             value: value - (rebate * totalMints)
         }(value);
-
-        if (
-            vaultedMints > 0 &&
-            block.timestamp <=
-            mintParams[collection].startTime + rebateWindowSec
-        ) {
-            payable(minter).transfer(rebate * vaultedMints);
+        uint256 rebateWindow = mintParams[collection].startTime +
+            rebateWindowSec;
+        if (vaultedMints > 0 && block.timestamp <= rebateWindow) {
+            genartVault.lockUserWithdraw(user, rebateWindow);
+            payable(user).transfer(rebate * vaultedMints);
         }
     }
 

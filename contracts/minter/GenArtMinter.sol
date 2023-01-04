@@ -119,9 +119,9 @@ contract GenArtMinter is GenArtMinterBase {
         _checkMint(collection, amount);
 
         // get all memberships for sender
-        address minter = _msgSender();
+        address user = _msgSender();
         uint256[] memory memberships = IGenArtInterface(genartInterface)
-            .getMembershipsOf(minter);
+            .getMembershipsOf(user);
         uint256 minted;
         uint256 i;
         IGenArtMintAllocator mintAlloc = IGenArtMintAllocator(
@@ -138,7 +138,7 @@ contract GenArtMinter is GenArtMinterBase {
             // mint tokens with membership and stop if desired amount reached
             uint256 j;
             for (j = 0; j < mints && minted < amount; j++) {
-                IGenArtERC721(collection).mint(minter, membershipId);
+                IGenArtERC721(collection).mint(user, membershipId);
                 minted++;
             }
             // update mint state once membership minted tokens

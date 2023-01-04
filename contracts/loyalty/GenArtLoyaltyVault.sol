@@ -51,6 +51,8 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
 
     address public genartMembership;
 
+    mapping(address => uint256) public lockedWithdraw;
+
     uint256 public weightFactorTokens = 2;
     uint256 public weightFactorMemberships = 1;
 
@@ -79,6 +81,11 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         genartMembership = _genartMembership;
     }
 
+    modifier requireNotLocked(address user) {
+        require(block.timestamp > lockedWithdraw[user], "assets locked");
+        _;
+    }
+
     /**
      * @notice Deposit staked tokens (and collect reward tokens if requested)
      * @param amount amount to deposit (in GENART)
@@ -103,7 +110,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     /**
      * @notice Withdraw all staked tokens (and collect reward tokens if requested)
      */
-    function withdraw() external nonReentrant {
+    function withdraw() external requireNotLocked(msg.sender) nonReentrant {
         address sender = _msgSender();
         require(userInfo[sender].tokens > 0, "zero shares");
         _withdraw(sender);
@@ -115,7 +122,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     function withdrawPartial(
         uint256 amount,
         uint256[] memory membershipsToWithdraw
-    ) external nonReentrant {
+    ) external requireNotLocked(msg.sender) nonReentrant {
         _withdrawPartial(msg.sender, amount, membershipsToWithdraw);
     }
 
@@ -146,6 +153,13 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
             currentRewardPerBlock,
             msg.value
         );
+    }
+
+    function lockUserWithdraw(address user, uint256 toTimestamp)
+        external
+        onlyAdmin
+    {
+        lockedWithdraw[user] = toTimestamp;
     }
 
     function setWeightFactors(

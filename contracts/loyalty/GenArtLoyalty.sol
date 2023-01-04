@@ -15,10 +15,10 @@ abstract contract GenArtLoyalty is GenArtAccess {
     uint256 public distributionDelayBlock = 260 * 24 * 14; // 14 days
     uint256 public lastDistributionBlock;
 
-    address public genartVault;
+    GenArtLoyaltyVault public genartVault;
 
     constructor(address genartVault_) {
-        genartVault = genartVault_;
+        genartVault = GenArtLoyaltyVault(payable(genartVault_));
     }
 
     /**
@@ -32,9 +32,7 @@ abstract contract GenArtLoyalty is GenArtAccess {
         );
         uint256 balance = address(this).balance;
         require(balance > 0, "zero balance");
-        GenArtLoyaltyVault(payable(genartVault)).updateRewards{value: balance}(
-            loyaltyDistributionBlocks
-        );
+        genartVault.updateRewards{value: balance}(loyaltyDistributionBlocks);
         lastDistributionBlock = block.number;
     }
 
@@ -42,7 +40,7 @@ abstract contract GenArtLoyalty is GenArtAccess {
      * @dev Set the {GenArtVault} contract address
      */
     function setGenartVault(address genartVault_) external onlyAdmin {
-        genartVault = genartVault_;
+        genartVault = GenArtLoyaltyVault(payable(genartVault_));
     }
 
     /**
