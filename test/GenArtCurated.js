@@ -594,31 +594,21 @@ describe("GenArtCurated", async function () {
         info.collection.paymentSplitter
       );
       await paymentSplitter.setAdminAccess(otherAccount.address, true);
-      const ownerBalanceOld = await web3.eth.getBalance(owner.address);
-      const artistBalanceOld = await web3.eth.getBalance(artistAccount.address);
       await paymentSplitter
         .connect(otherAccount)
         .splitPayment(ONE_GWEI, { value: ONE_GWEI });
-      await paymentSplitter
+      const artistRelease = await paymentSplitter
         .connect(otherAccount)
         .release(artistAccount.address);
-      await paymentSplitter.connect(otherAccount).release(owner.address);
-      const artistBalanceNew = await web3.eth.getBalance(artistAccount.address);
-      const ownerBalanceNew = await web3.eth.getBalance(owner.address);
-      expect(artistBalanceNew.toString()).to.equal(
-        BigNumber.from(artistBalanceOld).add(ONE_GWEI / 2)
+      const ownerRelease = await paymentSplitter
+        .connect(otherAccount)
+        .release(owner.address);
+
+      await expect(ownerRelease).to.changeEtherBalance(owner, ONE_GWEI / 2);
+      await expect(artistRelease).to.changeEtherBalance(
+        artistAccount,
+        ONE_GWEI / 2
       );
-      expect(ownerBalanceNew.toString()).to.equal(
-        BigNumber.from(ownerBalanceOld).add(ONE_GWEI / 2)
-      );
-      // await expect(tx).to.changeEtherBalances(
-      //   [artistAccount, owner],
-      //   [
-      //     -BigNumber.from(ONE_GWEI).add(
-      //       BigNumber.from(ONE_GWEI).mul(2).mul(875).div(1000)
-      //     ),
-      //     BigNumber.from(ONE_GWEI).mul(1).mul(125).div(1000),
-      //   ])
     });
     it("should split payment token", async () => {
       const { info, otherAccount, artistAccount, owner } = await init();
@@ -629,21 +619,20 @@ describe("GenArtCurated", async function () {
       const paymentSplitter = await GenArtPaymentSplitter.attach(
         info.collection.paymentSplitter
       );
-      const tokens = "100000000";
+
       const GenArtGovToken = await ethers.getContractFactory("GenArtGovToken");
       const token = await GenArtGovToken.deploy(otherAccount.address);
       await token
         .connect(otherAccount)
-        .transfer(paymentSplitter.address, tokens);
+        .transfer(paymentSplitter.address, ONE_GWEI);
 
-      await paymentSplitter.releaseTokens(token.address);
+      const release = () => paymentSplitter.releaseTokens(token.address);
 
-      const balanceArtist = await token.balanceOf(artistAccount.address);
-
-      const balanceOwner = await token.balanceOf(owner.address);
-
-      expect(balanceOwner).equals(BigNumber.from(tokens).div(2));
-      expect(balanceOwner).equals(balanceArtist);
+      await expect(release).to.changeTokenBalances(
+        token,
+        [owner, artistAccount],
+        [ONE_GWEI / 2, ONE_GWEI / 2]
+      );
     });
     it("should fail calling initializer on payment splitter", async () => {
       const { info, otherAccount, owner } = await init();
@@ -822,7 +811,7 @@ describe("GenArtCurated", async function () {
         .withdrawPartial(0, [stakingMembershipsUser1[0]]);
       await vault.connect(other2).withdraw();
     });
-    it("should distribute funds", async () => {
+    it("should distribute funds and fail on delayed", async () => {
       const { minterLoyalty, owner, vault } = await init();
       await owner.sendTransaction({
         value: ONE_GWEI,
