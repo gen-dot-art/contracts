@@ -159,6 +159,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         external
         onlyAdmin
     {
+        if (lockedWithdraw[user] >= toTimestamp) return;
         lockedWithdraw[user] = toTimestamp;
     }
 
