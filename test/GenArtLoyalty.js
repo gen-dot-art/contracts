@@ -199,8 +199,12 @@ describe("GenArtLoyalty", async function () {
         membershipsStaked[0].toString()
       );
       expect(actualOwner).equals(user1.address);
-
+      await vault.updateRewards(1, {
+        value: ONE_GWEI,
+      });
       const withdraw = await vault.connect(user1).withdraw();
+
+      expect(withdraw).to.changeEtherBalance(user1, ONE_GWEI);
       expect(withdraw).to.changeTokenBalance(
         token.address,
         vault,
@@ -243,7 +247,9 @@ describe("GenArtLoyalty", async function () {
         .connect(user1)
         .deposit(stakingMembershipsUser1, tokenBalance);
       expect(deposit).to.changeTokenBalance(token.address, vault, tokenBalance);
-
+      await vault.updateRewards(1, {
+        value: ONE_GWEI,
+      });
       const membershipsStaked = await vault.getMembershipsOf(user1.address);
 
       const actualOwner = await vault.membershipOwners(
@@ -254,7 +260,7 @@ describe("GenArtLoyalty", async function () {
       const withdraw = await vault
         .connect(user1)
         .withdrawPartial(withdrawBalance, [stakingMembershipsUser1[0]]);
-
+      expect(withdraw).to.changeEtherBalance(user1, ONE_GWEI);
       expect(withdraw).to.changeTokenBalance(
         token.address,
         vault,
