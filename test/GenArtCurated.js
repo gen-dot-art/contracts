@@ -2,6 +2,7 @@ const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { expect } = require("chai");
 const { web3, ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
+const { changeTokenBalances } = require("../helpers");
 
 const ONE_GWEI = 1_000_000_000;
 
@@ -601,12 +602,12 @@ describe("GenArtCurated", async function () {
 
       await paymentSplitter.releaseTokens(token.address);
 
-      const balanceArtist = await token.balanceOf(artistAccount.address);
-
-      const balanceOwner = await token.balanceOf(owner.address);
-
-      expect(balanceOwner).equals(BigNumber.from(tokens).div(2));
-      expect(balanceOwner).equals(balanceArtist);
+      await changeTokenBalances(
+        release,
+        token,
+        [artistAccount, owner],
+        [ONE_GWEI / 2, ONE_GWEI / 2]
+      );
     });
     it("should fail calling initializer on payment splitter", async () => {
       const { info, otherAccount, owner } = await init();
@@ -676,18 +677,13 @@ describe("GenArtCurated", async function () {
         .connect(artistAccount)
         .updatePayee(0, 1, otherAccount.address);
 
-      const artistBalanceOld = await web3.eth.getBalance(otherAccount.address);
-
       await paymentSplitter.splitPayment(ONE_GWEI, { value: ONE_GWEI });
 
-      await paymentSplitter
+      const release = await paymentSplitter
         .connect(artistAccount)
         .release(otherAccount.address);
 
-      const artistBalanceNew = await web3.eth.getBalance(otherAccount.address);
-      expect(artistBalanceNew.toString()).to.equal(
-        BigNumber.from(artistBalanceOld).add(ONE_GWEI / 2)
-      );
+      await expect(release).to.changeEtherBalance(otherAccount, ONE_GWEI / 2);
     });
   });
 });
