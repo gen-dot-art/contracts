@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../access/GenArtAccess.sol";
 import "../app/GenArtCurated.sol";
 import "../interface/IGenArtMintAllocator.sol";
-import "../interface/IGenArtInterface.sol";
+import "../interface/IGenArtInterfaceV4.sol";
 import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtPaymentSplitterV5.sol";
 import "./GenArtMinterBase.sol";
+import {GenArtLoyalty} from "../loyalty/GenArtLoyalty.sol";
 
 /**
- * @dev GEN.ART Default Minter
- * Admin for collections deployed on {GenArtCurated}
+ * @dev GEN.ART Minter Loyalty
+ * Admin for mintParams deployed on {GenArtCurated}
+ * Claims rebate from {GenArtLoyalty} on mint
  */
+
 struct FixedPriceParams {
     uint256 startTime;
     uint256 price;
@@ -20,11 +24,20 @@ struct FixedPriceParams {
     uint8[3] mintAlloc;
 }
 
-contract GenArtMinter is GenArtMinterBase {
+contract GenArtMinterLoyalty is
+    GenArtMinterBase,
+    GenArtLoyalty,
+    ReentrancyGuard
+{
     mapping(address => uint256) public prices;
 
-    constructor(address genartInterface_, address genartCurated_)
+    constructor(
+        address genartInterface_,
+        address genartCurated_,
+        address genartVault_
+    )
         GenArtMinterBase(genartInterface_, genartCurated_)
+        GenArtLoyalty(genartVault_)
     {}
 
     /**
@@ -53,14 +66,17 @@ contract GenArtMinter is GenArtMinterBase {
     /**
      * @dev Helper function to check for mint price and start date
      */
-    function _checkMint(address collection, uint256 amount) internal view {
+    function _checkMint(address collection, uint256 amount)
+        internal
+        view
+        returns (uint256 price)
+    {
+        price = getPrice(collection);
+        uint256 timestamp = mintParams[collection].startTime;
+        uint256 value = price * amount;
+        require(msg.value >= value, "wrong amount sent");
         require(
-            msg.value >= getPrice(collection) * amount,
-            "wrong amount sent"
-        );
-        require(
-            mintParams[collection].startTime != 0 &&
-                mintParams[collection].startTime <= block.timestamp,
+            timestamp != 0 && timestamp <= block.timestamp,
             "mint not started yet"
         );
     }
@@ -72,16 +88,16 @@ contract GenArtMinter is GenArtMinterBase {
         address collection,
         uint256 membershipId,
         uint256 amount
-    ) internal view {
+    ) internal view returns (bool) {
         uint256 availableMints = IGenArtMintAllocator(
             mintParams[collection].mintAllocContract
         ).getAvailableMintsForMembership(collection, membershipId);
         require(availableMints >= amount, "no mints available");
-        require(
-            IGenArtInterface(genartInterface).ownerOfMembership(membershipId) ==
-                msg.sender,
-            "sender must be owner of membership"
-        );
+        (address owner, bool isVaulted) = IGenArtInterfaceV4(genartInterface)
+            .ownerOfMembership(membershipId);
+        require(owner == msg.sender, "sender must be owner of membership");
+
+        return isVaulted;
     }
 
     /**
@@ -93,16 +109,19 @@ contract GenArtMinter is GenArtMinterBase {
         external
         payable
         override
+        nonReentrant
     {
-        _checkMint(collection, 1);
-        _checkAvailableMints(collection, membershipId, 1);
+        address user = _msgSender();
+        bool isVaulted = _checkAvailableMints(collection, membershipId, 1);
+        uint256 price = _checkMint(collection, 1);
+
         IGenArtMintAllocator(mintParams[collection].mintAllocContract).update(
             collection,
             membershipId,
             1
         );
-        IGenArtERC721(collection).mint(msg.sender, membershipId);
-        _splitPayment(collection);
+        IGenArtERC721(collection).mint(user, membershipId);
+        _splitPayment(collection, user, price, isVaulted ? 1 : 0, 1);
     }
 
     /**
@@ -114,15 +133,17 @@ contract GenArtMinter is GenArtMinterBase {
         external
         payable
         override
+        nonReentrant
     {
         // get all available mints for sender
-        _checkMint(collection, amount);
+        uint256 price = _checkMint(collection, amount);
 
-        // get all memberships for sender
         address user = _msgSender();
-        uint256[] memory memberships = IGenArtInterface(genartInterface)
-            .getMembershipsOf(user);
+        IGenArtInterfaceV4 iface = IGenArtInterfaceV4(genartInterface);
+        // get all memberships for sender
+        uint256[] memory memberships = iface.getMembershipsOf(user);
         uint256 minted;
+        uint256 vaultedMints;
         uint256 i;
         IGenArtMintAllocator mintAlloc = IGenArtMintAllocator(
             mintParams[collection].mintAllocContract
@@ -140,26 +161,43 @@ contract GenArtMinter is GenArtMinterBase {
             for (j = 0; j < mints && minted < amount; j++) {
                 IGenArtERC721(collection).mint(user, membershipId);
                 minted++;
+                if (iface.isVaulted(membershipId)) vaultedMints++;
             }
             // update mint state once membership minted tokens
             mintAlloc.update(collection, membershipId, j);
             i++;
         }
         require(minted > 0, "no mints available");
-        _splitPayment(collection);
+        _splitPayment(collection, user, price, vaultedMints, minted);
     }
 
     /**
      * @dev Internal function to forward funds to a {GenArtPaymentSplitter}
      */
-    function _splitPayment(address collection) internal {
+    function _splitPayment(
+        address collection,
+        address user,
+        uint256 price,
+        uint256 vaultedMints,
+        uint256 totalMints
+    ) internal {
         uint256 value = msg.value;
+        uint256 rebate = (price * baseRebateBps) / DOMINATOR;
         address paymentSplitter = GenArtCurated(genArtCurated)
             .store()
             .getPaymentSplitterForCollection(collection);
-        IGenArtPaymentSplitterV5(paymentSplitter).splitPayment{value: value}(
-            value
-        );
+        IGenArtPaymentSplitterV5(paymentSplitter).splitPayment{
+            value: value - (rebate * totalMints)
+        }(value);
+        uint256 rebateWindow = mintParams[collection].startTime +
+            rebateWindowSec;
+        if (vaultedMints > 0 && block.timestamp <= rebateWindow) {
+            genartVault.lockUserWithdraw(user, rebateWindow);
+            payable(user).transfer(
+                ((rebate * vaultedMints * (DOMINATOR - loyaltyRewardBps)) /
+                    DOMINATOR)
+            );
+        }
     }
 
     /**

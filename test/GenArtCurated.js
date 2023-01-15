@@ -1,10 +1,10 @@
-const { time } = require("@nomicfoundation/hardhat-network-helpers");
+const { time, mine } = require("@nomicfoundation/hardhat-network-helpers");
 const { expect } = require("chai");
 const { web3, ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const { changeTokenBalances } = require("../helpers");
 
-const ONE_GWEI = 1_000_000_000;
+const ONE_GWEI = 1000;
 
 const priceStandard = BigNumber.from(1).mul(BigNumber.from(10).pow(17));
 const priceGold = BigNumber.from(5).mul(BigNumber.from(10).pow(17));
@@ -14,19 +14,22 @@ describe("GenArtCurated", async function () {
   // and reset Hardhat Network to that snapshot in every test.
   async function deploy() {
     // Contracts are deployed using the first signer/account by default
-    const [owner, otherAccount, artistAccount, pool, other2] =
+    const [owner, otherAccount, artistAccount, pool, other2, user3] =
       await ethers.getSigners();
 
     const GenArt = await ethers.getContractFactory("GenArt");
 
     const GenArtInterface = await ethers.getContractFactory(
-      "GenArtInterfaceV3"
+      "GenArtInterfaceV4"
     );
 
     const GenArtFlashMinter = await ethers.getContractFactory(
       "GenArtFlashMinter"
     );
     const GenArtMinter = await ethers.getContractFactory("GenArtMinter");
+    const GenArtMinterLoyalty = await ethers.getContractFactory(
+      "GenArtMinterLoyalty"
+    );
     const GenArtWhitelistMinter = await ethers.getContractFactory(
       "GenArtWhitelistMinter"
     );
@@ -63,17 +66,34 @@ describe("GenArtCurated", async function () {
       10
     );
 
+    const GenArtLoyaltyVault = await ethers.getContractFactory(
+      "GenArtLoyaltyVault"
+    );
+
+    const GenArtGovToken = await ethers.getContractFactory("GenArtGovToken");
+    const token = await GenArtGovToken.deploy(owner.address);
     const storage = await GenArtStorage.deploy();
     const genartInterface = await GenArtInterface.deploy(
       genartMembership.address
     );
+    const vault = await GenArtLoyaltyVault.deploy(
+      genartMembership.address,
+      token.address,
+      genartInterface.address
+    );
+    await genartInterface.setLoyaltyVault(vault.address);
+
     const mintAlloc = await GenArtMintAllocator.deploy(genartInterface.address);
     const curated = await GenArtCurated.deploy(
       collectionFactory.address,
       paymentSplitterFactory.address,
       storage.address
     );
-
+    const minterLoyalty = await GenArtMinterLoyalty.deploy(
+      genartInterface.address,
+      curated.address,
+      vault.address
+    );
     const minter = await GenArtMinter.deploy(
       genartInterface.address,
       curated.address
@@ -92,15 +112,19 @@ describe("GenArtCurated", async function () {
     const implementation = await GenArtERC721V4.deploy();
 
     await collectionFactory.addErc721Implementation(0, implementation.address);
-    await curated.addMinter(0, minter.address);
     await collectionFactory.setAdminAccess(curated.address, true);
+    await curated.addMinter(0, minter.address);
+    await curated.addMinter(1, minterLoyalty.address);
     await storage.setAdminAccess(curated.address, true);
     await mintAlloc.setAdminAccess(minter.address, true);
     await mintAlloc.setAdminAccess(flashMinter.address, true);
+    await mintAlloc.setAdminAccess(minterLoyalty.address, true);
     await paymentSplitterFactory.setAdminAccess(curated.address, true);
     await minter.setAdminAccess(curated.address, true);
     await flashMinter.setAdminAccess(curated.address, true);
     await whitelistMinter.setAdminAccess(curated.address, true);
+    await minterLoyalty.setAdminAccess(curated.address, true);
+    await vault.setAdminAccess(minterLoyalty.address, true);
 
     await genartMembership.setPaused(false);
     await genartMembership.mint(owner.address, {
@@ -112,6 +136,9 @@ describe("GenArtCurated", async function () {
     await genartMembership.mint(pool.address, {
       value: priceStandard,
     });
+    await genartMembership.mint(user3.address, {
+      value: priceStandard,
+    });
     await genartMembership.mintGold(owner.address, {
       value: priceGold,
     });
@@ -119,9 +146,16 @@ describe("GenArtCurated", async function () {
       value: priceGold,
     });
 
+    await token.transfer(
+      other2.address,
+      BigNumber.from(10).pow(18).mul(10_000)
+    );
+    await token.transfer(user3.address, BigNumber.from(10).pow(18).mul(10_000));
+
     return {
       curated,
       factory: collectionFactory,
+      minterLoyalty,
       whitelistMinter,
       paymentSplitter,
       implementation,
@@ -133,9 +167,12 @@ describe("GenArtCurated", async function () {
       otherAccount,
       pool,
       other2,
+      vault,
       storage,
+      token,
       genartMembership,
       genartInterface,
+      user3,
     };
   }
 
@@ -558,31 +595,21 @@ describe("GenArtCurated", async function () {
         info.collection.paymentSplitter
       );
       await paymentSplitter.setAdminAccess(otherAccount.address, true);
-      const ownerBalanceOld = await web3.eth.getBalance(owner.address);
-      const artistBalanceOld = await web3.eth.getBalance(artistAccount.address);
       await paymentSplitter
         .connect(otherAccount)
         .splitPayment(ONE_GWEI, { value: ONE_GWEI });
-      await paymentSplitter
+      const artistRelease = await paymentSplitter
         .connect(otherAccount)
         .release(artistAccount.address);
-      await paymentSplitter.connect(otherAccount).release(owner.address);
-      const artistBalanceNew = await web3.eth.getBalance(artistAccount.address);
-      const ownerBalanceNew = await web3.eth.getBalance(owner.address);
-      expect(artistBalanceNew.toString()).to.equal(
-        BigNumber.from(artistBalanceOld).add(ONE_GWEI / 2)
+      const ownerRelease = await paymentSplitter
+        .connect(otherAccount)
+        .release(owner.address);
+
+      await expect(ownerRelease).to.changeEtherBalance(owner, ONE_GWEI / 2);
+      await expect(artistRelease).to.changeEtherBalance(
+        artistAccount,
+        ONE_GWEI / 2
       );
-      expect(ownerBalanceNew.toString()).to.equal(
-        BigNumber.from(ownerBalanceOld).add(ONE_GWEI / 2)
-      );
-      // await expect(tx).to.changeEtherBalances(
-      //   [artistAccount, owner],
-      //   [
-      //     -BigNumber.from(ONE_GWEI).add(
-      //       BigNumber.from(ONE_GWEI).mul(2).mul(875).div(1000)
-      //     ),
-      //     BigNumber.from(ONE_GWEI).mul(1).mul(125).div(1000),
-      //   ])
     });
     it("should split payment token", async () => {
       const { info, otherAccount, artistAccount, owner } = await init();
@@ -593,14 +620,14 @@ describe("GenArtCurated", async function () {
       const paymentSplitter = await GenArtPaymentSplitter.attach(
         info.collection.paymentSplitter
       );
-      const tokens = "100000000";
+
       const GenArtGovToken = await ethers.getContractFactory("GenArtGovToken");
       const token = await GenArtGovToken.deploy(otherAccount.address);
       await token
         .connect(otherAccount)
-        .transfer(paymentSplitter.address, tokens);
+        .transfer(paymentSplitter.address, ONE_GWEI);
 
-      await paymentSplitter.releaseTokens(token.address);
+      const release = () => paymentSplitter.releaseTokens(token.address);
 
       await changeTokenBalances(
         release,
@@ -684,6 +711,123 @@ describe("GenArtCurated", async function () {
         .release(otherAccount.address);
 
       await expect(release).to.changeEtherBalance(otherAccount, ONE_GWEI / 2);
+    });
+  });
+  describe("Loyalty", async () => {
+    it("should receive loyalty refund and lock assets", async () => {
+      const {
+        other2,
+        factory,
+        mintAlloc,
+        curated,
+        artistAccount,
+        token,
+        vault,
+        genartMembership,
+        minterLoyalty,
+        user3,
+        storage,
+        owner,
+      } = await init();
+      const tokenBalance = await token.balanceOf(other2.address);
+      const tokenBalance2 = await token.balanceOf(user3.address);
+      const membershipsUser1 = await genartMembership.getTokensByOwner(
+        other2.address
+      );
+      const membershipsUser2 = await genartMembership.getTokensByOwner(
+        user3.address
+      );
+      const stakingMembershipsUser1 = membershipsUser1
+        .filter((m) => m.toNumber() <= 10)
+        .map((m) => m.toString());
+      stakingMembershipsUser1.pop();
+      await token.connect(other2).approve(vault.address, tokenBalance);
+      await genartMembership
+        .connect(other2)
+        .setApprovalForAll(vault.address, true);
+      await token.connect(user3).approve(vault.address, tokenBalance2);
+      await genartMembership
+        .connect(user3)
+        .setApprovalForAll(vault.address, true);
+
+      await vault
+        .connect(other2)
+        .deposit(stakingMembershipsUser1, tokenBalance);
+      await vault.connect(user3).deposit(membershipsUser2, tokenBalance2);
+      const { info, startTime } = await createCollection(
+        curated,
+        storage,
+        factory,
+        mintAlloc,
+        owner,
+        artistAccount,
+        4,
+        1,
+        1
+      );
+      await time.increaseTo(startTime + 1000);
+
+      const tx = await minterLoyalty
+        .connect(other2)
+        .mint(info.collection.contractAddress, "3", {
+          value: BigNumber.from(ONE_GWEI).mul(3),
+        });
+
+      await expect(tx).to.changeEtherBalances(
+        [other2, minterLoyalty],
+        [
+          -BigNumber.from(ONE_GWEI).add(
+            BigNumber.from(ONE_GWEI).mul(2).mul(875).div(1000)
+          ),
+          BigNumber.from(ONE_GWEI).mul(1).mul(125).div(1000),
+        ]
+      );
+
+      const withdrawPart = vault
+        .connect(other2)
+        .withdrawPartial(0, [stakingMembershipsUser1[0]]);
+      const withdraw = vault.connect(other2).withdraw();
+      await expect(withdrawPart).to.revertedWith("assets locked");
+      await expect(withdraw).to.revertedWith("assets locked");
+
+      await time.increaseTo(startTime + 1000 + 60 * 60 * 24 * 5);
+      const tx2 = await minterLoyalty
+        .connect(user3)
+        .mintOne(info.collection.contractAddress, membershipsUser2[0], {
+          value: BigNumber.from(ONE_GWEI).mul(1),
+        });
+      await expect(tx2).to.changeEtherBalances(
+        [user3, minterLoyalty],
+        [
+          -BigNumber.from(ONE_GWEI),
+          BigNumber.from(ONE_GWEI).mul(1).mul(125).div(1000),
+        ]
+      );
+      await vault
+        .connect(other2)
+        .withdrawPartial(0, [stakingMembershipsUser1[0]]);
+      await vault.connect(other2).withdraw();
+    });
+    it("should distribute funds and fail on delayed", async () => {
+      const { minterLoyalty, owner, vault } = await init();
+      await owner.sendTransaction({
+        value: ONE_GWEI,
+        to: minterLoyalty.address,
+      });
+      const tx = await minterLoyalty.distributeLoyalties();
+      await expect(tx).to.changeEtherBalances(
+        [vault],
+        [BigNumber.from(ONE_GWEI)]
+      );
+
+      await owner.sendTransaction({
+        value: ONE_GWEI,
+        to: minterLoyalty.address,
+      });
+      const fail = minterLoyalty.distributeLoyalties();
+      await expect(fail).to.revertedWith("distribution delayed");
+      await mine(260 * 24 * 14);
+      await minterLoyalty.distributeLoyalties();
     });
   });
 });

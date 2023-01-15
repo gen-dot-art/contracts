@@ -23,8 +23,6 @@ contract GenArtPaymentSplitterV5 is
     Payment private _payment;
     Payment private _paymentRoyalties;
 
-    uint256 public platformShareBps = 75;
-
     constructor() {
         _disableInitializers();
     }
