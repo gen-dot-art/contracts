@@ -6,11 +6,13 @@ const { expect } = require("chai");
 const { web3, ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+const { changeTokenBalances } = require("../helpers");
 
 const ONE_GWEI = 1_000_000_000;
 
 const priceStandard = BigNumber.from(1).mul(BigNumber.from(10).pow(17));
 const priceGold = BigNumber.from(5).mul(BigNumber.from(10).pow(17));
+
 describe("GenArtLoyalty", async function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
@@ -125,11 +127,15 @@ describe("GenArtLoyalty", async function () {
       await token.connect(user1).approve(vault.address, tokenBalance);
       await membership.connect(user1).setApprovalForAll(vault.address, true);
 
-      const deposit = await vault
-        .connect(user1)
-        .deposit(stakingMembershipsUser1, tokenBalance);
-      expect(deposit).to.changeTokenBalance(token.address, vault, tokenBalance);
-
+      const deposit = () =>
+        vault.connect(user1).deposit(stakingMembershipsUser1, tokenBalance);
+      // expect(deposit).to.changeTokenBalance(token.address, vault, tokenBalance);
+      await changeTokenBalances(
+        deposit,
+        token,
+        [user1, vault],
+        [BigNumber.from(tokenBalance).mul(-1), tokenBalance]
+      );
       const contractMemberships = await membership.getTokensByOwner(
         vault.address
       );
@@ -146,12 +152,35 @@ describe("GenArtLoyalty", async function () {
       await token.connect(user2).approve(vault.address, tokenBalance);
       await membership.connect(user2).setApprovalForAll(vault.address, true);
 
-      await vault.connect(user2).deposit(stakingMembershipsUser2, tokenBalance);
-
+      const deposit = () =>
+        vault.connect(user2).deposit(stakingMembershipsUser2, tokenBalance);
+      await changeTokenBalances(
+        deposit,
+        token,
+        [user2, vault],
+        [BigNumber.from(tokenBalance).mul(-1), tokenBalance]
+      );
       const contractMemberships = await membership.getTokensByOwner(
         vault.address
       );
 
+      const totalMembershipShares = await vault.totalMembershipShares();
+      const totalTokenShares = await vault.totalTokenShares();
+      const expectedTotalMemberships = contractMemberships.reduce(
+        (acc, curr) => {
+          return acc.add(
+            BigNumber.from(curr.toNumber() > 10 ? 5 : 1).mul(
+              BigNumber.from(10).pow(18)
+            )
+          );
+        },
+        BigNumber.from("0")
+      );
+
+      expect(totalMembershipShares.toString()).equal(
+        expectedTotalMemberships.toString()
+      );
+      expect(tokenBalance.toString()).equal(totalTokenShares.toString());
       expect(contractMemberships.length).equal(stakingMembershipsUser2.length);
     });
     it("Fail if no memberships", async () => {
@@ -202,20 +231,13 @@ describe("GenArtLoyalty", async function () {
       await vault.updateRewards(1, {
         value: ONE_GWEI,
       });
-      const withdraw = await vault.connect(user1).withdraw();
-
-      expect(withdraw).to.changeEtherBalance(user1, ONE_GWEI);
-      expect(withdraw).to.changeTokenBalance(
-        token.address,
-        vault,
-        -tokenBalance
+      const withdraw = () => vault.connect(user1).withdraw();
+      await changeTokenBalances(
+        withdraw,
+        token,
+        [vault, user1],
+        [BigNumber.from(tokenBalance).mul(-1), tokenBalance]
       );
-      expect(withdraw).to.changeTokenBalance(
-        token.address,
-        user1,
-        tokenBalance
-      );
-
       const memberships = await membership.getTokensByOwner(user1.address);
       const membershipsStakedAfter = await vault.getMembershipsOf(
         user1.address
@@ -226,6 +248,27 @@ describe("GenArtLoyalty", async function () {
       if (hasInvalidMemberships) {
         throw new Error("Invalid memberships found in userInfo object");
       }
+
+      const contractMemberships = await membership.getTokensByOwner(
+        vault.address
+      );
+      const totalMembershipShares = await vault.totalMembershipShares();
+      const totalTokenShares = await vault.totalTokenShares();
+      const expectedTotalMemberships = contractMemberships.reduce(
+        (acc, curr) => {
+          return acc.add(
+            BigNumber.from(curr.toNumber() > 10 ? 5 : 1).mul(
+              BigNumber.from(10).pow(18)
+            )
+          );
+        },
+        BigNumber.from("0")
+      );
+
+      expect(totalMembershipShares.toString()).equal(
+        expectedTotalMemberships.toString()
+      );
+      expect(totalTokenShares.toString()).equals("0");
       expect(memberships.length).equals(membershipsUser1.length);
       expect(membershipsStakedAfter.length).equals(0);
       const actualOwnerAfter = await vault.membershipOwners(
@@ -243,10 +286,15 @@ describe("GenArtLoyalty", async function () {
       await token.connect(user1).approve(vault.address, tokenBalance);
       await membership.connect(user1).setApprovalForAll(vault.address, true);
 
-      const deposit = await vault
-        .connect(user1)
-        .deposit(stakingMembershipsUser1, tokenBalance);
-      expect(deposit).to.changeTokenBalance(token.address, vault, tokenBalance);
+      const deposit = () =>
+        vault.connect(user1).deposit(stakingMembershipsUser1, tokenBalance);
+      // expect(deposit).to.changeTokenBalance(token.address, vault, tokenBalance);
+      await changeTokenBalances(
+        deposit,
+        token,
+        [user1, vault],
+        [BigNumber.from(tokenBalance).mul(-1), tokenBalance]
+      );
       await vault.updateRewards(1, {
         value: ONE_GWEI,
       });
@@ -256,20 +304,20 @@ describe("GenArtLoyalty", async function () {
         membershipsStaked[0].toString()
       );
       expect(actualOwner).equals(user1.address);
-      const withdrawBalance = tokenBalance.mul(10).div(100);
+      const withdrawBalance = BigNumber.from(tokenBalance).div(10);
+
+      const membershipsToWithdraw = stakingMembershipsUser1.slice(0, 2);
       const withdraw = await vault
         .connect(user1)
-        .withdrawPartial(withdrawBalance, [stakingMembershipsUser1[0]]);
+        .withdrawPartial("0", membershipsToWithdraw);
       expect(withdraw).to.changeEtherBalance(user1, ONE_GWEI);
-      expect(withdraw).to.changeTokenBalance(
-        token.address,
-        vault,
-        -withdrawBalance
-      );
-      expect(withdraw).to.changeTokenBalance(
-        token.address,
-        user1,
-        withdrawBalance
+      const withdraw2 = () =>
+        vault.connect(user1).withdrawPartial(withdrawBalance, []);
+      await changeTokenBalances(
+        withdraw2,
+        token,
+        [vault, user1],
+        [BigNumber.from(withdrawBalance).mul(-1), withdrawBalance]
       );
       const memberships = await membership.getTokensByOwner(user1.address);
 
@@ -282,8 +330,32 @@ describe("GenArtLoyalty", async function () {
       if (hasInvalidMemberships) {
         throw new Error("Invalid memberships found in userInfo object");
       }
-      expect(memberships.length).equals(1);
-      expect(membershipsStakedAfter.length).equals(membershipsUser1.length - 1);
+      const contractMemberships = await membership.getTokensByOwner(
+        vault.address
+      );
+      const totalMembershipShares = await vault.totalMembershipShares();
+      const totalTokenShares = await vault.totalTokenShares();
+      const expectedTotalMemberships = contractMemberships.reduce(
+        (acc, curr) => {
+          return acc.add(
+            BigNumber.from(curr.toNumber() > 10 ? 5 : 1).mul(
+              BigNumber.from(10).pow(18)
+            )
+          );
+        },
+        BigNumber.from("0")
+      );
+
+      expect(totalMembershipShares.toString()).equal(
+        expectedTotalMemberships.toString()
+      );
+      expect(totalTokenShares.toString()).equals(
+        tokenBalance.sub(withdrawBalance).toString()
+      );
+      expect(memberships.length).equals(membershipsToWithdraw.length);
+      expect(membershipsStakedAfter.length).equals(
+        membershipsUser1.length - membershipsToWithdraw.length
+      );
       const actualOwnerAfter = await vault.membershipOwners(
         membershipsStaked[0].toString()
       );
@@ -352,7 +424,7 @@ describe("GenArtLoyalty", async function () {
       mine(10);
 
       const tx = await vault.connect(user1).harvest();
-      const tx2 = await vault.connect(user2).harvest();
+      const tx2 = await vault.connect(user2).withdraw();
 
       const share = ((10_000 / (10_000 + 30_000)) * 2 + 5 / (5 + 5)) / 3;
       const share2 = ((30_000 / (10_000 + 30_000)) * 2 + 5 / (5 + 5)) / 3;
