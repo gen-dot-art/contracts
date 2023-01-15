@@ -182,7 +182,7 @@ contract GenArtMinterLoyalty is
         uint256 totalMints
     ) internal {
         uint256 value = msg.value;
-        uint256 rebate = (price * baseRebatePerMintBps) / DOMINATOR;
+        uint256 rebate = (price * baseRebateBps) / DOMINATOR;
         address paymentSplitter = GenArtCurated(genArtCurated)
             .store()
             .getPaymentSplitterForCollection(collection);
@@ -193,7 +193,10 @@ contract GenArtMinterLoyalty is
             rebateWindowSec;
         if (vaultedMints > 0 && block.timestamp <= rebateWindow) {
             genartVault.lockUserWithdraw(user, rebateWindow);
-            payable(user).transfer(rebate * vaultedMints);
+            payable(user).transfer(
+                ((rebate * vaultedMints * (DOMINATOR - loyaltyRewardBps)) /
+                    DOMINATOR)
+            );
         }
     }
 

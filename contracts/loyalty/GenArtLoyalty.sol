@@ -9,7 +9,8 @@ import "./GenArtLoyaltyVault.sol";
  */
 abstract contract GenArtLoyalty is GenArtAccess {
     uint256 constant DOMINATOR = 1000;
-    uint256 public baseRebatePerMintBps = 125;
+    uint256 public baseRebateBps = 125;
+    uint256 public loyaltyRewardBps = 0;
     uint256 public rebateWindowSec = 60 * 60 * 24 * 5; // 5 days
     uint256 public loyaltyDistributionBlocks = 260 * 24 * 30; // 30 days
     uint256 public distributionDelayBlock = 260 * 24 * 14; // 14 days
@@ -22,7 +23,7 @@ abstract contract GenArtLoyalty is GenArtAccess {
     }
 
     /**
-     * @dev Internal method to send funds to {GenArtVault} for distribution
+     * @dev Public method to send funds to {GenArtLoyaltyVault} for distribution
      */
     function distributeLoyalties() public {
         require(
@@ -37,17 +38,24 @@ abstract contract GenArtLoyalty is GenArtAccess {
     }
 
     /**
-     * @dev Set the {GenArtVault} contract address
+     * @dev Set the {GenArtLoyaltyVault} contract address
      */
     function setGenartVault(address genartVault_) external onlyAdmin {
         genartVault = GenArtLoyaltyVault(payable(genartVault_));
     }
 
     /**
-     * @dev Set the base rebate per mint bps {e.g 125}
+     * @dev Set the base rebate bps per mint {e.g 125}
      */
-    function setBaseRebatePerMintBps(uint256 bps) external onlyAdmin {
-        baseRebatePerMintBps = bps;
+    function setBaseRebateBps(uint256 bps) external onlyAdmin {
+        baseRebateBps = bps;
+    }
+
+    /**
+     * @dev Set the loyalty reward bps per mint {e.g 25}
+     */
+    function setLoyaltyRewardBps(uint256 bps) external onlyAdmin {
+        loyaltyRewardBps = bps;
     }
 
     /**
