@@ -46,10 +46,9 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     mapping(address => UserInfo) public userInfo;
 
     IERC20 public immutable genartToken;
+    address public immutable genartMembership;
 
     address public genartInterface;
-
-    address public genartMembership;
 
     mapping(address => uint256) public lockedWithdraw;
 
@@ -57,6 +56,8 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     uint256 public weightFactorMemberships = 1;
 
     mapping(uint256 => address) public membershipOwners;
+
+    bool public emergencyWithdrawDisabled;
 
     event Deposit(address indexed user, uint256 amount);
     event Harvest(address indexed user, uint256 harvestedAmount);
@@ -103,7 +104,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         address sender = _msgSender();
         uint256 pendingRewards = _harvest(sender);
         require(pendingRewards > 0, "zero rewards to harvest");
-        // Transfer reward token to sender
+        // transfer reward token to sender
         payable(sender).transfer(pendingRewards);
     }
 
@@ -135,7 +136,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         payable
         onlyAdmin
     {
-        // Adjust the current reward per block
+        // adjust the current reward per block
         if (block.number >= periodEndBlock) {
             currentRewardPerBlock = msg.value / rewardDurationInBlocks;
         } else {
@@ -179,12 +180,30 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         minimumMembershipAmount = minimumMembershipAmount_;
     }
 
-    function collectDust(uint256 amount) external onlyGenArtAdmin {
-        payable(owner()).transfer(amount);
+    /**
+     * @dev Disable emergency withdraw
+     */
+    function disableEmergencyWithdraw() public onlyAdmin {
+        emergencyWithdrawDisabled = true;
     }
 
     /**
-     * checks requirements for depositing a stake
+     * @dev Withdraw funds on contract to owner in case of emergency
+     */
+    function emergencyWithdraw() public onlyAdmin {
+        require(!emergencyWithdrawDisabled, "emergency withdraw disabled");
+        payable(owner()).transfer(address(this).balance);
+    }
+
+    /**
+     * @dev Set the {GenArtInferface} contract address
+     */
+    function setInterface(address genartInterface_) external onlyAdmin {
+        genartInterface = genartInterface_;
+    }
+
+    /**
+     * Checks requirements for depositing a stake
      */
     function _checkDeposit(
         address user,
@@ -231,7 +250,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         uint256[] memory membershipIds,
         uint256 amount
     ) internal {
-        // Update reward for user
+        // update reward for user
         _updateReward(user);
         // send memberships to this contract
         for (uint256 i; i < membershipIds.length; i++) {
@@ -247,10 +266,10 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
             totalMembershipShares += _getMembershipShareValue(membershipIds[i]);
         }
 
-        // Transfer GENART tokens to this address
+        // transfer GENART tokens to this address
         genartToken.transferFrom(user, address(this), amount);
 
-        // Adjust internal token shares
+        // adjust internal token shares
         userInfo[user].tokens += amount;
         totalTokenShares += amount;
 
@@ -284,7 +303,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         userInfo[user].tokens = 0;
         totalTokenShares -= tokens;
 
-        // Transfer GENART tokens to user
+        // transfer GENART tokens to user
         genartToken.safeTransfer(user, tokens);
         for (uint256 i = memberships.length; i >= 1; i--) {
             // remove membership token id from user info object
@@ -300,7 +319,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
                 memberships[i - 1]
             );
         }
-        // Transfer reward token to user
+        // transfer reward token to user
         payable(user).transfer(pendingRewards);
         emit Withdraw(user, tokens, memberships);
     }
@@ -316,13 +335,13 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         // harvest rewards
         uint256 pendingRewards = _harvest(user);
         uint256 tokens = userInfo[user].tokens;
-        uint256[] memory memberships = userInfo[user].membershipIds;
+
         uint256 remainingTokens;
         uint256 remainingMemberships;
         unchecked {
             remainingTokens = tokens - amount;
             remainingMemberships =
-                memberships.length -
+                userInfo[user].membershipIds.length -
                 membershipsToWithdraw.length;
         }
         require(
@@ -338,18 +357,20 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
         userInfo[user].tokens = remainingTokens;
         totalTokenShares -= amount;
 
-        // Transfer GENART tokens to user
-        genartToken.safeTransfer(user, tokens);
+        // transfer GENART tokens to user
+        genartToken.safeTransfer(user, amount);
         for (uint256 i; i < membershipsToWithdraw.length; i++) {
             // remove membership token id from user info object
             uint256 vaultedMembershipIndex = findArrayIndex(
-                memberships,
+                userInfo[user].membershipIds,
                 membershipsToWithdraw[i]
             );
             userInfo[user].membershipIds[vaultedMembershipIndex] = userInfo[
                 user
-            ].membershipIds[memberships.length - 1];
+            ].membershipIds[userInfo[user].membershipIds.length - 1];
+
             userInfo[user].membershipIds.pop();
+
             membershipOwners[membershipsToWithdraw[i]] = address(0);
             // adjust internal membership shares
             totalMembershipShares -= _getMembershipShareValue(
@@ -361,7 +382,7 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
                 membershipsToWithdraw[i]
             );
         }
-        // Transfer reward token to user
+        // transfer reward token to user
         payable(user).transfer(pendingRewards);
         emit Withdraw(user, tokens, membershipsToWithdraw);
     }
@@ -381,14 +402,14 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
      * @notice Harvest reward tokens that are pending
      */
     function _harvest(address user) internal returns (uint256) {
-        // Update reward for user
+        // update reward for user
         _updateReward(user);
 
-        // Retrieve pending rewards
+        // retrieve pending rewards
         uint256 pendingRewards = userInfo[user].rewards;
 
         if (pendingRewards == 0) return 0;
-        // Adjust user rewards and transfer
+        // adjust user rewards and transfer
         userInfo[user].rewards = 0;
 
         emit Harvest(user, pendingRewards);
