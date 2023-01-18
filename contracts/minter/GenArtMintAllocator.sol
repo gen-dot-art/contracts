@@ -3,17 +3,15 @@
 pragma solidity ^0.8.0;
 import "./MintAlloc.sol";
 import "../access/GenArtAccess.sol";
-import "../app/GenArtCurated.sol";
-import "../interface/IGenArtMinter.sol";
-import "../interface/IGenArtInterface.sol";
+import "../interface/IGenArtInterfaceV4.sol";
 import "../interface/IGenArtERC721.sol";
-import "../interface/IGenArtPaymentSplitterV4.sol";
+import "../interface/IGenArtMintAllocator.sol";
 
 /**
  * @dev GEN.ART Mint Allocator
  */
 
-contract GenArtMintAllocator is GenArtAccess {
+contract GenArtMintAllocator is GenArtAccess, IGenArtMintAllocator {
     using MintAlloc for MintAlloc.State;
 
     mapping(address => MintAlloc.State) public mintstates;
@@ -28,6 +26,7 @@ contract GenArtMintAllocator is GenArtAccess {
      */
     function init(address collection, uint8[3] memory mintAlloc)
         external
+        override
         onlyAdmin
     {
         mintstates[collection].init(mintAlloc);
@@ -40,14 +39,22 @@ contract GenArtMintAllocator is GenArtAccess {
         address collection,
         uint256 membershipId,
         uint256 amount
-    ) external onlyAdmin {
+    ) external override onlyAdmin {
         mintstates[collection].update(
             MintUpdateParams(
                 membershipId,
-                IGenArtInterface(genartInterface).isGoldToken(membershipId),
+                IGenArtInterfaceV4(genartInterface).isGoldToken(membershipId),
                 amount
             )
         );
+    }
+
+    function setReservedGold(address collection, uint8 reservedGold)
+        external
+        override
+        onlyAdmin
+    {
+        mintstates[collection].setReservedGold(reservedGold);
     }
 
     /**
@@ -56,7 +63,17 @@ contract GenArtMintAllocator is GenArtAccess {
     function getAvailableMintsForMembership(
         address collection,
         uint256 membershipId
-    ) external view returns (uint256) {
+    ) external view override returns (uint256) {
+        return _getAvailableMintsForMembership(collection, membershipId);
+    }
+
+    /**
+     *@dev Internal helper method to get available mints for a membershipId
+     */
+    function _getAvailableMintsForMembership(
+        address collection,
+        uint256 membershipId
+    ) internal view returns (uint256) {
         (, , , , , uint256 maxSupply, uint256 totalSupply) = IGenArtERC721(
             collection
         ).getInfo();
@@ -64,7 +81,9 @@ contract GenArtMintAllocator is GenArtAccess {
             mintstates[collection].getAvailableMints(
                 MintParams(
                     membershipId,
-                    IGenArtInterface(genartInterface).isGoldToken(membershipId),
+                    IGenArtInterfaceV4(genartInterface).isGoldToken(
+                        membershipId
+                    ),
                     maxSupply,
                     totalSupply
                 )
@@ -77,9 +96,29 @@ contract GenArtMintAllocator is GenArtAccess {
     function getMembershipMints(address collection, uint256 membershipId)
         external
         view
+        override
         returns (uint256)
     {
         return mintstates[collection].getMints(membershipId);
+    }
+
+    function getAvailableMintsForAccount(address collection, address account)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        uint256[] memory memberships = IGenArtInterfaceV4(genartInterface)
+            .getMembershipsOf(account);
+        uint256 available;
+        for (uint256 i; i < memberships.length; i++) {
+            available += _getAvailableMintsForMembership(
+                collection,
+                memberships[i]
+            );
+        }
+
+        return available;
     }
 
     function getMintAlloc(address collection)

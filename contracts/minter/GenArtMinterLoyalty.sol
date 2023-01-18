@@ -49,6 +49,7 @@ contract GenArtMinterLoyalty is
         external
         override
         onlyAdmin
+        returns (uint256)
     {
         FixedPriceParams memory params = abi.decode(data, (FixedPriceParams));
         super._setMintParams(
@@ -61,6 +62,8 @@ contract GenArtMinterLoyalty is
             collection,
             params.mintAlloc
         );
+
+        return params.price;
     }
 
     /**

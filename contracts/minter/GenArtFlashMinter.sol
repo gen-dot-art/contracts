@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "../access/GenArtAccess.sol";
 import "../app/GenArtCurated.sol";
 import "../interface/IGenArtMintAllocator.sol";
-import "../interface/IGenArtInterface.sol";
+import "../interface/IGenArtInterfaceV4.sol";
 import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtPaymentSplitterV5.sol";
 import "./GenArtMinterBase.sol";
@@ -47,6 +47,7 @@ contract GenArtFlashMinter is GenArtMinterBase {
         external
         override
         onlyAdmin
+        returns (uint256)
     {
         FlashLoanParams memory params = abi.decode(data, (FlashLoanParams));
         _setPricing(
@@ -55,6 +56,7 @@ contract GenArtFlashMinter is GenArtMinterBase {
             params.price,
             params.mintAllocContract
         );
+        return params.price;
     }
 
     /**
@@ -88,7 +90,7 @@ contract GenArtFlashMinter is GenArtMinterBase {
     ) internal {
         super._setMintParams(collection, startTime, mintAllocContract);
         prices[collection] = price;
-        pooledMemberships[collection] = IGenArtInterface(genartInterface)
+        pooledMemberships[collection] = IGenArtInterfaceV4(genartInterface)
             .getMembershipsOf(membershipLendingPool);
     }
 
@@ -134,11 +136,9 @@ contract GenArtFlashMinter is GenArtMinterBase {
         internal
         view
     {
-        require(
-            IGenArtInterface(genartInterface).ownerOfMembership(membershipId) ==
-                membershipLendingPool,
-            "not a vaulted membership"
-        );
+        (address owner, ) = IGenArtInterfaceV4(genartInterface)
+            .ownerOfMembership(membershipId);
+        require(owner == membershipLendingPool, "not a vaulted membership");
 
         uint256 availableMints = IGenArtMintAllocator(
             mintParams[collection].mintAllocContract

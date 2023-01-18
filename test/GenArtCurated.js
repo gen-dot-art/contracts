@@ -78,8 +78,7 @@ describe("GenArtCurated", async function () {
     );
     const vault = await GenArtLoyaltyVault.deploy(
       genartMembership.address,
-      token.address,
-      genartInterface.address
+      token.address
     );
     await genartInterface.setLoyaltyVault(vault.address);
 

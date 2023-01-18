@@ -13,6 +13,7 @@ struct CollectionParams {
     address artist;
     string name;
     string symbol;
+    uint256 price;
     string script;
     uint8 collectionType;
     uint256 maxSupply;
@@ -25,25 +26,27 @@ struct CollectionType {
     uint256 prefix;
     uint256 lastId;
 }
+struct CollectionCreatedEvent {
+    uint256 id;
+    address contractAddress;
+    uint8 collectionType;
+    address artist;
+    string name;
+    string symbol;
+    uint256 price;
+    string script;
+    uint256 maxSupply;
+    address minter;
+    address implementation;
+    address paymentSplitter;
+}
 
 contract GenArtCollectionFactory is GenArtAccess {
     mapping(uint8 => address) public erc721Implementations;
     mapping(uint8 => CollectionType) public collectionTypes;
-
-    address public paymentSplitterImplementation;
     string public uri;
 
-    event Created(
-        uint256 id,
-        address contractAddress,
-        address artist,
-        string name,
-        string symbol,
-        string script,
-        uint256 maxSupply,
-        address minter,
-        address implementation
-    );
+    event Created(CollectionCreatedEvent collection);
 
     constructor(string memory uri_) GenArtAccess() {
         uri = uri_;
@@ -111,18 +114,26 @@ contract GenArtCollectionFactory is GenArtAccess {
             params.minter,
             params.paymentSplitter
         );
-        address instance = Clones.clone(implementation);
+        address instance = Clones.cloneDeterministic(
+            implementation,
+            bytes32(block.number)
+        );
         Address.functionCall(instance, initializer);
         emit Created(
-            id,
-            instance,
-            params.artist,
-            params.name,
-            params.symbol,
-            params.script,
-            params.maxSupply,
-            params.minter,
-            implementation
+            CollectionCreatedEvent(
+                id,
+                instance,
+                params.collectionType,
+                params.artist,
+                params.name,
+                params.symbol,
+                params.price,
+                params.script,
+                params.maxSupply,
+                params.minter,
+                implementation,
+                params.paymentSplitter
+            )
         );
         return (instance, id);
     }
@@ -154,5 +165,21 @@ contract GenArtCollectionFactory is GenArtAccess {
      */
     function setUri(string memory uri_) external onlyAdmin {
         uri = uri_;
+    }
+
+    /**
+     * @dev Predict contract address for new collection
+     */
+    function predictDeterministicAddress(uint8 erc721Index)
+        external
+        view
+        returns (address)
+    {
+        return
+            Clones.predictDeterministicAddress(
+                erc721Implementations[erc721Index],
+                bytes32(block.number),
+                address(this)
+            );
     }
 }

@@ -4,8 +4,6 @@ pragma solidity ^0.8.0;
 import "../access/GenArtAccess.sol";
 import "../app/GenArtCurated.sol";
 import "../interface/IGenArtMintAllocator.sol";
-import "../interface/IGenArtInterface.sol";
-import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtPaymentSplitterV5.sol";
 import "./GenArtMinterBase.sol";
 
@@ -43,6 +41,7 @@ contract GenArtWhitelistMinter is GenArtMinterBase {
         external
         override
         onlyAdmin
+        returns (uint256)
     {
         WhitelistParams memory params = abi.decode(data, (WhitelistParams));
         _setPricing(
@@ -52,6 +51,8 @@ contract GenArtWhitelistMinter is GenArtMinterBase {
             params.mintAllocContract,
             params.whitelist
         );
+
+        return params.price;
     }
 
     /**

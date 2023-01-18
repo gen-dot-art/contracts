@@ -76,13 +76,11 @@ contract GenArtCurated is GenArtAccess {
     /**
      * @dev Internal functtion to create the collection and risgister to minter
      */
-    function _createCollection(
-        CollectionParams memory params,
-        uint8 pricingMode,
-        bytes memory pricingData
-    ) internal returns (address instance, uint256 id) {
+    function _createCollection(CollectionParams memory params)
+        internal
+        returns (address instance, uint256 id)
+    {
         (instance, id) = _cloneCollection(params);
-        IGenArtMinter(minters[pricingMode]).setPricing(instance, pricingData);
         store.setCollection(
             Collection(
                 id,
@@ -130,20 +128,25 @@ contract GenArtCurated is GenArtAccess {
                 params.sharesMint,
                 params.sharesRoyalties
             );
+        address instance = GenArtCollectionFactory(collectionFactory)
+            .predictDeterministicAddress(params.erc721Index);
+        uint256 price = IGenArtMinter(minter).setPricing(
+            instance,
+            params.pricingData
+        );
         _createCollection(
             CollectionParams(
                 artistAddress,
                 params.name,
                 params.symbol,
+                price,
                 params.script,
                 params.collectionType,
                 params.maxSupply,
                 params.erc721Index,
                 minter,
                 paymentSplitter
-            ),
-            params.pricingMode,
-            params.pricingData
+            )
         );
     }
 

@@ -44,8 +44,7 @@ describe("GenArtLoyalty", async function () {
       const iface = await GenArtInterface.deploy(membership.address);
       const vault = await GenArtLoyaltyVault.deploy(
         membership.address,
-        token.address,
-        iface.address
+        token.address
       );
 
       await membership.setPaused(false);

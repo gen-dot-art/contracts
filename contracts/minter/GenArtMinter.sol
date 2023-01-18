@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "../access/GenArtAccess.sol";
 import "../app/GenArtCurated.sol";
 import "../interface/IGenArtMintAllocator.sol";
-import "../interface/IGenArtInterface.sol";
+import "../interface/IGenArtInterfaceV4.sol";
 import "../interface/IGenArtERC721.sol";
 import "../interface/IGenArtPaymentSplitterV5.sol";
 import "./GenArtMinterBase.sol";
@@ -36,6 +36,7 @@ contract GenArtMinter is GenArtMinterBase {
         external
         override
         onlyAdmin
+        returns (uint256)
     {
         FixedPriceParams memory params = abi.decode(data, (FixedPriceParams));
         super._setMintParams(
@@ -48,6 +49,8 @@ contract GenArtMinter is GenArtMinterBase {
             collection,
             params.mintAlloc
         );
+
+        return params.price;
     }
 
     /**
@@ -77,11 +80,9 @@ contract GenArtMinter is GenArtMinterBase {
             mintParams[collection].mintAllocContract
         ).getAvailableMintsForMembership(collection, membershipId);
         require(availableMints >= amount, "no mints available");
-        require(
-            IGenArtInterface(genartInterface).ownerOfMembership(membershipId) ==
-                msg.sender,
-            "sender must be owner of membership"
-        );
+        (address owner, ) = IGenArtInterfaceV4(genartInterface)
+            .ownerOfMembership(membershipId);
+        require(owner == msg.sender, "sender must be owner of membership");
     }
 
     /**
@@ -120,7 +121,7 @@ contract GenArtMinter is GenArtMinterBase {
 
         // get all memberships for sender
         address user = _msgSender();
-        uint256[] memory memberships = IGenArtInterface(genartInterface)
+        uint256[] memory memberships = IGenArtInterfaceV4(genartInterface)
             .getMembershipsOf(user);
         uint256 minted;
         uint256 i;

@@ -5,6 +5,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 import {IERC20, SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../interface/IGenArtInterfaceV4.sol";
+import "../interface/IGenArt.sol";
 import "../access/GenArtAccess.sol";
 
 /**
@@ -48,8 +49,6 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     IERC20 public immutable genartToken;
     address public immutable genartMembership;
 
-    address public genartInterface;
-
     mapping(address => uint256) public lockedWithdraw;
 
     uint256 public weightFactorTokens = 2;
@@ -72,13 +71,8 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
      * @notice Constructor
      * @param _genartToken address of the token staked (GRNART)
      */
-    constructor(
-        address _genartMembership,
-        address _genartToken,
-        address _genartInterace
-    ) {
+    constructor(address _genartMembership, address _genartToken) {
         genartToken = IERC20(_genartToken);
-        genartInterface = _genartInterace;
         genartMembership = _genartMembership;
     }
 
@@ -196,13 +190,6 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     }
 
     /**
-     * @dev Set the {GenArtInferface} contract address
-     */
-    function setInterface(address genartInterface_) external onlyAdmin {
-        genartInterface = genartInterface_;
-    }
-
-    /**
      * Checks requirements for depositing a stake
      */
     function _checkDeposit(
@@ -238,11 +225,8 @@ contract GenArtLoyaltyVault is ReentrancyGuard, GenArtAccess {
     {
         // 5 shares per gold membership. 1 share for standard memberships
         return
-            (
-                IGenArtInterfaceV4(genartInterface).isGoldToken(membershipId)
-                    ? 5
-                    : 1
-            ) * PRECISION_FACTOR;
+            (IGenArt(genartMembership).isGoldToken(membershipId) ? 5 : 1) *
+            PRECISION_FACTOR;
     }
 
     function _deposit(

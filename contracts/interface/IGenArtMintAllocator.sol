@@ -21,6 +21,8 @@ interface IGenArtMintAllocator {
         uint256 membershipId
     ) external view returns (uint256);
 
+    function setReservedGold(address collection, uint8 reservedGold) external;
+
     function getMembershipMints(address collection, uint256 membershipId)
         external
         view
