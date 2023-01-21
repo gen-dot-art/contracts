@@ -10,8 +10,8 @@ import "../interface/IGenArtPaymentSplitterV5.sol";
 import "./GenArtMinterBase.sol";
 
 /**
- * @dev GEN.ART Flash Minter
- * Admin for mintParams deployed on {GenArtCurated}
+ * @dev GEN.ART Minter Flash loan
+ * Admin for collections deployed on {GenArtCurated}
  */
 
 struct FlashLoanParams {
@@ -20,7 +20,7 @@ struct FlashLoanParams {
     address mintAllocContract;
 }
 
-contract GenArtFlashMinter is GenArtMinterBase {
+contract GenArtMinterFlash is GenArtMinterBase {
     address public payoutAddress;
     address public membershipLendingPool;
     uint256 public lendingFeePercentage = 0;
@@ -109,16 +109,44 @@ contract GenArtFlashMinter is GenArtMinterBase {
     }
 
     /**
+     * @dev Get available pooled memberships
+     * @param collection contract address of the collection
+     */
+    function getPooledMemberships(address collection)
+        public
+        view
+        virtual
+        returns (uint256[] memory)
+    {
+        return pooledMemberships[collection];
+    }
+
+    /**
+     * @dev Get available pooled memberships
+     * @param collection contract address of the collection
+     */
+    function getTotalPooledMemberships(address collection)
+        public
+        view
+        virtual
+        returns (uint256)
+    {
+        return pooledMemberships[collection].length;
+    }
+
+    /**
      * @dev Helper function to check for mint price and start date
      */
     function _checkMint(address collection) internal view {
-        require(msg.value >= getPrice(collection), "wrong amount sent");
-
+        require(msg.value == getPrice(collection), "wrong amount sent");
+        (, , , , , uint256 maxSupply, uint256 totalSupply) = IGenArtERC721(
+            collection
+        ).getInfo();
+        require(totalSupply + 1 <= maxSupply, "collection sold out");
         require(
             pooledMemberships[collection].length > 0,
             "no memberships available"
         );
-
         require(
             mintParams[collection].startTime != 0,
             "falsh loan mint not started yet"
@@ -127,24 +155,6 @@ contract GenArtFlashMinter is GenArtMinterBase {
             mintParams[collection].startTime <= block.timestamp,
             "mint not started yet"
         );
-    }
-
-    /**
-     * @dev Helper function to check for available mints for sender
-     */
-    function _checkAvailableMints(address collection, uint256 membershipId)
-        internal
-        view
-    {
-        (address owner, ) = IGenArtInterfaceV4(genartInterface)
-            .ownerOfMembership(membershipId);
-        require(owner == membershipLendingPool, "not a vaulted membership");
-
-        uint256 availableMints = IGenArtMintAllocator(
-            mintParams[collection].mintAllocContract
-        ).getAvailableMintsForMembership(collection, membershipId);
-
-        require(availableMints >= 1, "no mints available");
     }
 
     /**
@@ -158,7 +168,6 @@ contract GenArtFlashMinter is GenArtMinterBase {
             pooledMemberships[collection].length - 1
         ];
         pooledMemberships[collection].pop();
-        _checkAvailableMints(collection, membershipId);
         _mint(collection, membershipId);
         _splitPayment(collection);
     }
@@ -180,7 +189,7 @@ contract GenArtFlashMinter is GenArtMinterBase {
      * Note DO NOT USE
      */
     function mint(address, uint256) external payable override {
-        revert("Not implemented");
+        revert("not implemented");
     }
 
     /**
