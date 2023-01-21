@@ -23,10 +23,10 @@ describe("GenArtCurated", async function () {
       "GenArtInterfaceV4"
     );
 
-    const GenArtFlashMinter = await ethers.getContractFactory(
-      "GenArtFlashMinter"
+    const GenArtMinterFlash = await ethers.getContractFactory(
+      "GenArtMinterFlash"
     );
-    const GenArtMinter = await ethers.getContractFactory("GenArtMinter");
+    // const GenArtMinter = await ethers.getContractFactory("GenArtMinter");
     const GenArtMinterLoyalty = await ethers.getContractFactory(
       "GenArtMinterLoyalty"
     );
@@ -93,16 +93,16 @@ describe("GenArtCurated", async function () {
       curated.address,
       vault.address
     );
-    const minter = await GenArtMinter.deploy(
-      genartInterface.address,
-      curated.address
-    );
+    // const minterLoyalty = await GenArtMinter.deploy(
+    //   genartInterface.address,
+    //   curated.address
+    // );
     const whitelistMinter = await GenArtWhitelistMinter.deploy(
       genartInterface.address,
       curated.address,
       pool.address
     );
-    const flashMinter = await GenArtFlashMinter.deploy(
+    const flashMinter = await GenArtMinterFlash.deploy(
       genartInterface.address,
       curated.address,
       pool.address,
@@ -112,14 +112,14 @@ describe("GenArtCurated", async function () {
 
     await collectionFactory.addErc721Implementation(0, implementation.address);
     await collectionFactory.setAdminAccess(curated.address, true);
-    await curated.addMinter(0, minter.address);
-    await curated.addMinter(1, minterLoyalty.address);
+    // await curated.addMinter(0, minterLoyalty.address);
+    await curated.addMinter(0, minterLoyalty.address);
     await storage.setAdminAccess(curated.address, true);
-    await mintAlloc.setAdminAccess(minter.address, true);
+    // await mintAlloc.setAdminAccess(minterLoyalty.address, true);
     await mintAlloc.setAdminAccess(flashMinter.address, true);
     await mintAlloc.setAdminAccess(minterLoyalty.address, true);
     await paymentSplitterFactory.setAdminAccess(curated.address, true);
-    await minter.setAdminAccess(curated.address, true);
+    // await minterLoyalty.setAdminAccess(curated.address, true);
     await flashMinter.setAdminAccess(curated.address, true);
     await whitelistMinter.setAdminAccess(curated.address, true);
     await minterLoyalty.setAdminAccess(curated.address, true);
@@ -158,7 +158,7 @@ describe("GenArtCurated", async function () {
       whitelistMinter,
       paymentSplitter,
       implementation,
-      minter,
+      // minterLoyalty,
       mintAlloc,
       flashMinter,
       owner,
@@ -251,10 +251,12 @@ describe("GenArtCurated", async function () {
         sharesRoyalties: [500, 500],
       },
     ]);
+
     const tx = await owner.sendTransaction({
       to: curated.address,
       data: calldata,
     });
+
     const artist = await store.getArtist(artistAccount.address);
     const info = await curated.getCollectionInfo(artist.collections[index]);
 
@@ -370,17 +372,21 @@ describe("GenArtCurated", async function () {
       await expect(mint).to.emit(collection, "Mint");
     });
     it("should mint one", async () => {
-      const { minter, info, collection } = await init();
+      const { minterLoyalty, info, collection } = await init();
 
       // console.log("a", artist);
 
-      const mint = await minter.mintOne(info.collection.contractAddress, "1", {
-        value: ONE_GWEI,
-      });
+      const mint = await minterLoyalty.mintOne(
+        info.collection.contractAddress,
+        "1",
+        {
+          value: ONE_GWEI,
+        }
+      );
 
       await expect(mint).to.emit(collection, "Mint");
 
-      const mintGold = await minter.mintOne(
+      const mintGold = await minterLoyalty.mintOne(
         info.collection.contractAddress,
         "11",
         {
@@ -392,26 +398,28 @@ describe("GenArtCurated", async function () {
       // console.log("name", await collection.name());
     });
     it("should mint many", async () => {
-      const { minter, info, collection, other2 } = await init();
+      const { minterLoyalty, info, collection, other2 } = await init();
 
       // console.log("a", artist);
-      const mint = await minter
+      const mint = await minterLoyalty
         .connect(other2)
         .mintOne(info.collection.contractAddress, "2", {
           value: ONE_GWEI,
         });
 
-      await minter.connect(other2).mint(info.collection.contractAddress, "4", {
-        value: BigNumber.from(ONE_GWEI).mul(4),
-      });
+      await minterLoyalty
+        .connect(other2)
+        .mint(info.collection.contractAddress, "4", {
+          value: BigNumber.from(ONE_GWEI).mul(4),
+        });
 
-      const mintOneFail = minter
+      const mintOneFail = minterLoyalty
         .connect(other2)
         .mintOne(info.collection.contractAddress, "3", {
           value: ONE_GWEI,
         });
 
-      const mintManyFail = minter
+      const mintManyFail = minterLoyalty
         .connect(other2)
         .mint(info.collection.contractAddress, "1", {
           value: BigNumber.from(ONE_GWEI).mul(1),
@@ -423,39 +431,6 @@ describe("GenArtCurated", async function () {
       await expect(mint).to.emit(collection, "Mint");
 
       // console.log("name", await collection.name());
-    });
-    it("should mint using flash loan", async () => {
-      const { flashMinter, info, collection, pool } = await init();
-
-      // console.log("a", artist);
-
-      const fee = 200;
-
-      await flashMinter.setMembershipLendingFee(fee);
-
-      const poolBalanceOld = await web3.eth.getBalance(pool.address);
-      const price = ONE_GWEI * (1 + fee / 1000);
-      const mint = await flashMinter.mintOne(
-        info.collection.contractAddress,
-        "0",
-        {
-          value: price,
-        }
-      );
-      await flashMinter.withdraw();
-
-      await expect(mint).to.emit(collection, "Mint");
-      const mintFail = flashMinter.mint(info.collection.contractAddress, {
-        value: BigNumber.from(ONE_GWEI),
-      });
-
-      const poolBalanceNew = await web3.eth.getBalance(pool.address);
-      const expectedBalance = BigNumber.from(poolBalanceOld)
-        .add(price - ONE_GWEI)
-        .toString();
-
-      expect(poolBalanceNew).to.equal(expectedBalance);
-      expect(mintFail).to.revertedWith("no memberships available");
     });
     it("should mint using whitelist", async () => {
       const { whitelistMinter, info, collection, pool, otherAccount } =
@@ -493,7 +468,7 @@ describe("GenArtCurated", async function () {
     });
     it("should fail on mint sell out", async () => {
       const {
-        minter,
+        minterLoyalty,
         owner,
         storage,
         other2,
@@ -514,17 +489,19 @@ describe("GenArtCurated", async function () {
       );
       await time.increaseTo(startTime + 1000);
 
-      await minter.connect(other2).mint(info.collection.contractAddress, "3", {
-        value: BigNumber.from(ONE_GWEI).mul(3),
-      });
+      await minterLoyalty
+        .connect(other2)
+        .mint(info.collection.contractAddress, "3", {
+          value: BigNumber.from(ONE_GWEI).mul(3),
+        });
 
-      const mintOneFail = minter
+      const mintOneFail = minterLoyalty
         .connect(other2)
         .mintOne(info.collection.contractAddress, "3", {
           value: ONE_GWEI,
         });
 
-      const mintManyFail = minter
+      const mintManyFail = minterLoyalty
         .connect(other2)
         .mint(info.collection.contractAddress, "1", {
           value: BigNumber.from(ONE_GWEI).mul(1),
@@ -536,14 +513,14 @@ describe("GenArtCurated", async function () {
       // console.log("name", await collection.name());
     });
     it("should fail on mint without membership", async () => {
-      const { info, artistAccount, minter } = await init();
+      const { info, artistAccount, minterLoyalty } = await init();
 
-      const shouldFailMint = minter
+      const shouldFailMint = minterLoyalty
         .connect(artistAccount)
         .mintOne(info.collection.contractAddress, "11", {
           value: ONE_GWEI,
         });
-      const shouldFailMint2 = minter
+      const shouldFailMint2 = minterLoyalty
         .connect(artistAccount)
         .mintOne(info.collection.contractAddress, "0", {
           value: ONE_GWEI,
@@ -557,16 +534,16 @@ describe("GenArtCurated", async function () {
       );
     });
     it("should fail on mint wrong amount", async () => {
-      const { info, minter, collection } = await init();
+      const { info, minterLoyalty, collection } = await init();
 
-      const shouldFailMint = minter.mint(
+      const shouldFailMint = minterLoyalty.mint(
         info.collection.contractAddress,
         "11",
         {
           value: 1000,
         }
       );
-      const shouldFailMint2 = minter.mint(
+      const shouldFailMint2 = minterLoyalty.mint(
         info.collection.contractAddress,
         "2",
         {
@@ -574,13 +551,120 @@ describe("GenArtCurated", async function () {
         }
       );
 
-      const mintGold = minter.mintOne(info.collection.contractAddress, "11", {
-        value: ONE_GWEI,
-      });
+      const mintGold = minterLoyalty.mintOne(
+        info.collection.contractAddress,
+        "11",
+        {
+          value: ONE_GWEI,
+        }
+      );
 
       await expect(shouldFailMint).to.revertedWith("wrong amount sent");
       await expect(shouldFailMint2).to.revertedWith("wrong amount sent");
       await expect(mintGold).to.emit(collection, "Mint");
+    });
+  });
+  describe("FlashLoan", async () => {
+    it("should mint using flash loan", async () => {
+      const { flashMinter, info, collection, pool } = await init();
+
+      // console.log("a", artist);
+
+      const fee = 200;
+
+      await flashMinter.setMembershipLendingFee(fee);
+
+      const poolBalanceOld = await web3.eth.getBalance(pool.address);
+      const price = ONE_GWEI * (1 + fee / 1000);
+      const mint = await flashMinter.mintOne(
+        info.collection.contractAddress,
+        "0",
+        {
+          value: price,
+        }
+      );
+      await flashMinter.withdraw();
+
+      await expect(mint).to.emit(collection, "Mint");
+      const mintFail = flashMinter.mint(info.collection.contractAddress, {
+        value: BigNumber.from(ONE_GWEI),
+      });
+
+      const poolBalanceNew = await web3.eth.getBalance(pool.address);
+      const expectedBalance = BigNumber.from(poolBalanceOld)
+        .add(price - ONE_GWEI)
+        .toString();
+
+      expect(poolBalanceNew).to.equal(expectedBalance);
+      expect(mintFail).to.revertedWith("no memberships available");
+    });
+    it("should fail flash loan mint on sell out", async () => {
+      const {
+        minterLoyalty,
+        owner,
+        storage,
+        other2,
+        factory,
+        mintAlloc,
+        curated,
+        flashMinter,
+        genartMembership,
+        pool,
+        user3,
+      } = await init();
+      await genartMembership.mint(pool.address, {
+        value: priceStandard,
+      });
+      const { info, startTime } = await createCollection(
+        curated,
+        storage,
+        factory,
+        mintAlloc,
+        owner,
+        user3,
+        3,
+        0
+      );
+
+      await flashMinter["setPricing(address,uint256,uint256,address)"](
+        info.collection.contractAddress,
+        startTime,
+        ONE_GWEI,
+        mintAlloc.address
+      );
+      const GenArtErc721 = await ethers.getContractFactory("GenArtERC721V4");
+      const collection = await GenArtErc721.attach(
+        info.collection.contractAddress
+      );
+      await collection.setMinter(flashMinter.address, true, false);
+
+      await time.increaseTo(startTime + 1000);
+      await minterLoyalty
+        .connect(other2)
+        .mint(info.collection.contractAddress, "2", {
+          value: BigNumber.from(ONE_GWEI).mul(2),
+        });
+
+      await flashMinter
+        .connect(other2)
+        .mintOne(info.collection.contractAddress, "0", {
+          value: ONE_GWEI,
+        });
+
+      const mintOneFail = flashMinter
+        .connect(other2)
+        .mintOne(info.collection.contractAddress, "0", {
+          value: ONE_GWEI,
+        });
+
+      const mintManyFail = flashMinter
+        .connect(other2)
+        .mint(info.collection.contractAddress, "1", {
+          value: BigNumber.from(ONE_GWEI).mul(1),
+        });
+
+      await expect(mintOneFail).to.revertedWith("collection sold out");
+      await expect(mintManyFail).to.revertedWith("not implemented");
     });
   });
   describe("PaymentSplitter", async () => {
@@ -762,7 +846,7 @@ describe("GenArtCurated", async function () {
         artistAccount,
         4,
         1,
-        1
+        0
       );
       await time.increaseTo(startTime + 1000);
 
