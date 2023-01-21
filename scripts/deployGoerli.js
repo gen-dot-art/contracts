@@ -12,7 +12,7 @@ async function main() {
   };
   // const loyaltyMinterAddress = "0x51403ce83cDD0E3a13558459779E39a6ceea6e99";
   const genartMembershipAddress = "0x8E0414D4714fA11DC7c6F6ff80f19B2b555FcD06";
-  const loyaltyVaultAddress = "0xa956bE20b31DB59f78d640d4Df188600dF72B069";
+  const loyaltyVaultAddress = "0x6FA6379f1cea89F38A9113fCB718Ad20eDa391e6";
   const genartInterfaceAddress = "0x44897375074cCd9d99f6C08e61ADEAB4a3910723";
 
   // const implementation = {
@@ -38,8 +38,8 @@ async function main() {
 
   const GenArtInterface = await ethers.getContractFactory("GenArtInterfaceV4");
   const GenArtStorage = await ethers.getContractFactory("GenArtStorage");
-  const GenArtFlashMinter = await ethers.getContractFactory(
-    "GenArtFlashMinter"
+  const GenArtMinterFlash = await ethers.getContractFactory(
+    "GenArtMinterFlash"
   );
   const GenArtMinter = await ethers.getContractFactory("GenArtMinter");
   const GenArtWhitelistMinter = await ethers.getContractFactory(
@@ -158,7 +158,7 @@ async function main() {
     pool.address,
     pool.address,
   ];
-  const flashMinter = await GenArtFlashMinter.deploy(...flashMinterArgs);
+  const flashMinter = await GenArtMinterFlash.deploy(...flashMinterArgs);
   console.log(
     "yarn hardhat verify --network goerli",
     [flashMinter.address].concat(flashMinterArgs.map((a) => `"${a}"`)).join(" ")

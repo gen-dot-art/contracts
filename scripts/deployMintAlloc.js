@@ -11,8 +11,8 @@ async function main() {
   const flashMinterAddress = "0xfbd15971133288a10A9Fb48E1af72a0e953B9949";
   const loyaltyMinterAddress = "0x51403ce83cDD0E3a13558459779E39a6ceea6e99";
 
-  const GenArtFlashMinter = await ethers.getContractFactory(
-    "GenArtFlashMinter"
+  const GenArtMinterFlash = await ethers.getContractFactory(
+    "GenArtMinterFlash"
   );
   const GenArtMinterLoyalty = await ethers.getContractFactory(
     "GenArtMinterLoyalty"
@@ -21,7 +21,7 @@ async function main() {
     "GenArtMintAllocator"
   );
 
-  const flashMinter = GenArtFlashMinter.attach(flashMinterAddress);
+  const flashMinter = GenArtMinterFlash.attach(flashMinterAddress);
   const minterLoyalty = GenArtMinterLoyalty.attach(loyaltyMinterAddress);
 
   const mintAlloc = await GenArtMintAllocator.deploy(genartInterfaceAddress);

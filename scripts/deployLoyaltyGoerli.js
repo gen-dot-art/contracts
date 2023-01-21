@@ -33,18 +33,13 @@ async function main() {
 
   const vault = await GenArtLoyaltyVault.deploy(
     genartMembershipAddress,
-    token.address,
-    iface.address
+    token.address
   );
 
   console.log(
     "yarn hardhat verify --network goerli",
     []
-      .concat(
-        [genartMembershipAddress, token.address, iface.address].map(
-          (a) => `"${a}"`
-        )
-      )
+      .concat([genartMembershipAddress, token.address].map((a) => `"${a}"`))
       .join(" ")
   );
   await vault.deployed();
