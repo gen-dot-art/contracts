@@ -9,7 +9,7 @@ import "./GenArtMinterBase.sol";
 
 /**
  * @dev GEN.ART Whitelist Minter
- * Admin for mintParams deployed on {GenArtCurated}
+ * Admin for collections deployed on {GenArtCurated}
  */
 
 contract GenArtWhitelistMinter is GenArtMinterBase {

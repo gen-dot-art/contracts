@@ -13,7 +13,7 @@ import {GenArtLoyalty} from "../loyalty/GenArtLoyalty.sol";
 
 /**
  * @dev GEN.ART Minter Loyalty
- * Admin for mintParams deployed on {GenArtCurated}
+ * Admin for collections deployed on {GenArtCurated}
  * Claims rebate from {GenArtLoyalty} on mint
  */
 
