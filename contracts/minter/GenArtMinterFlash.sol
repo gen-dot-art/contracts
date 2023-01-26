@@ -21,9 +21,12 @@ struct FlashLoanParams {
 }
 
 contract GenArtMinterFlash is GenArtMinterBase {
+    uint256 DOMINATOR = 1000;
     address public payoutAddress;
+    address public loyaltyPool;
     address public membershipLendingPool;
     uint256 public lendingFeePercentage = 0;
+    uint256 public loyaltyRewardBps = 125;
 
     mapping(address => uint256[]) public pooledMemberships;
     mapping(address => uint256) public prices;
@@ -32,10 +35,12 @@ contract GenArtMinterFlash is GenArtMinterBase {
         address genartInterface_,
         address genartCurated_,
         address membershipLendingPool_,
-        address payoutAddress_
+        address payoutAddress_,
+        address loyaltyPool_
     ) GenArtMinterBase(genartInterface_, genartCurated_) {
         membershipLendingPool = membershipLendingPool_;
         payoutAddress = payoutAddress_;
+        loyaltyPool = loyaltyPool_;
     }
 
     /**
@@ -200,10 +205,13 @@ contract GenArtMinterFlash is GenArtMinterBase {
         address paymentSplitter = GenArtCurated(genArtCurated)
             .store()
             .getPaymentSplitterForCollection(collection);
-        uint256 amount = (value / (1000 + lendingFeePercentage)) * 1000;
-        IGenArtPaymentSplitterV5(paymentSplitter).splitPayment{value: amount}(
-            value
-        );
+        uint256 amount = (value / (DOMINATOR + lendingFeePercentage)) *
+            DOMINATOR;
+        uint256 loyalties = (amount * loyaltyRewardBps) / DOMINATOR;
+        payable(loyaltyPool).transfer(loyalties);
+        IGenArtPaymentSplitterV5(paymentSplitter).splitPayment{
+            value: amount - loyalties
+        }(amount);
     }
 
     /**
@@ -227,10 +235,37 @@ contract GenArtMinterFlash is GenArtMinterBase {
     }
 
     /**
+     * @dev Set membership pool address
+     */
+    function removeMembership(address collection, uint256 membershipIndex)
+        external
+        onlyAdmin
+    {
+        pooledMemberships[collection][membershipIndex] = pooledMemberships[
+            collection
+        ][pooledMemberships[collection].length - 1];
+        pooledMemberships[collection].pop();
+    }
+
+    /**
+     * @dev Set the loyalty reward bps per mint {e.g 125}
+     */
+    function setLoyaltyRewardBps(uint256 bps) external onlyAdmin {
+        loyaltyRewardBps = bps;
+    }
+
+    /**
      * @dev Set the payout address for the flash lending fees
      */
     function setPayoutAddress(address payoutAddress_) external onlyGenArtAdmin {
         payoutAddress = payoutAddress_;
+    }
+
+    /**
+     * @dev Set the payout address for the flash lending fees
+     */
+    function setLoyaltyPool(address loyaltyPool_) external onlyAdmin {
+        loyaltyPool = loyaltyPool_;
     }
 
     /**

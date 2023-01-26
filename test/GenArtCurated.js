@@ -106,7 +106,8 @@ describe("GenArtCurated", async function () {
       genartInterface.address,
       curated.address,
       pool.address,
-      pool.address
+      pool.address,
+      minterLoyalty.address
     );
     const implementation = await GenArtERC721V4.deploy();
 
@@ -566,7 +567,16 @@ describe("GenArtCurated", async function () {
   });
   describe("FlashLoan", async () => {
     it("should mint using flash loan", async () => {
-      const { flashMinter, info, collection, pool } = await init();
+      const {
+        flashMinter,
+        info,
+        collection,
+        pool,
+        minterLoyalty,
+        otherAccount,
+        owner,
+        artistAccount,
+      } = await init();
 
       // console.log("a", artist);
 
@@ -583,6 +593,7 @@ describe("GenArtCurated", async function () {
           value: price,
         }
       );
+      await expect(mint).to.changeEtherBalance(minterLoyalty, ONE_GWEI * 0.125);
       await flashMinter.withdraw();
 
       await expect(mint).to.emit(collection, "Mint");
@@ -597,6 +608,30 @@ describe("GenArtCurated", async function () {
 
       expect(poolBalanceNew).to.equal(expectedBalance);
       expect(mintFail).to.revertedWith("no memberships available");
+
+      const GenArtPaymentSplitter = await ethers.getContractFactory(
+        "GenArtPaymentSplitterV5"
+      );
+      const paymentSplitter = await GenArtPaymentSplitter.attach(
+        info.collection.paymentSplitter
+      );
+
+      const artistRelease = await paymentSplitter
+        .connect(otherAccount)
+        .release(artistAccount.address);
+      const ownerRelease = await paymentSplitter
+        .connect(otherAccount)
+        .release(owner.address);
+
+      const splitAmount = ONE_GWEI * 0.875;
+      await expect(ownerRelease).to.changeEtherBalance(
+        owner,
+        BigNumber.from(splitAmount).div(2)
+      );
+      await expect(artistRelease).to.changeEtherBalance(
+        artistAccount,
+        BigNumber.from(splitAmount).div(2)
+      );
     });
     it("should fail flash loan mint on sell out", async () => {
       const {
@@ -665,6 +700,50 @@ describe("GenArtCurated", async function () {
 
       await expect(mintOneFail).to.revertedWith("collection sold out");
       await expect(mintManyFail).to.revertedWith("not implemented");
+    });
+    it("should remove membership", async () => {
+      const {
+        owner,
+        storage,
+        factory,
+        mintAlloc,
+        curated,
+        flashMinter,
+        genartMembership,
+        pool,
+        user3,
+      } = await init();
+      await genartMembership.mint(pool.address, {
+        value: priceStandard,
+      });
+      const { info, startTime } = await createCollection(
+        curated,
+        storage,
+        factory,
+        mintAlloc,
+        owner,
+        user3,
+        3,
+        0
+      );
+      await flashMinter["setPricing(address,uint256,uint256,address)"](
+        info.collection.contractAddress,
+        startTime,
+        ONE_GWEI,
+        mintAlloc.address
+      );
+      const membershipIds = await flashMinter.getPooledMemberships(
+        info.collection.contractAddress
+      );
+      await flashMinter.removeMembership(info.collection.contractAddress, "0");
+
+      const newMembershipIds = await flashMinter.getPooledMemberships(
+        info.collection.contractAddress
+      );
+      const found = newMembershipIds.some(
+        (m) => m.toString() === membershipIds[0].toString()
+      );
+      await expect(found).to.equals(false);
     });
   });
   describe("PaymentSplitter", async () => {
